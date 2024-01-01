@@ -5,7 +5,6 @@ from rl_modules.actor_critic import ActorCritic
 import wandb
 from datetime import datetime
 import os
-import torch
 
 
 def train():

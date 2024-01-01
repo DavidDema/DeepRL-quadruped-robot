@@ -78,10 +78,6 @@ class GOEnv(MujocoEnv):
 
     @property
     def is_healthy(self):
-        """
-        Checks if the env is healthy (called for each step)
-        :return: True if body center is within healthy z-range
-        """
         min_z, max_z = self._healthy_z_range
         is_healthy = min_z < self.data.qpos[2] < max_z
 
@@ -93,10 +89,6 @@ class GOEnv(MujocoEnv):
         return terminated
 
     def _get_obs(self):
-        """
-        Returns body positions [qpos, qvel]
-        :return: concat[qpos, qvel]
-        """
         qpos = self.data.qpos.flat.copy()
         qvel = self.data.qvel.flat.copy()
 
@@ -114,23 +106,16 @@ class GOEnv(MujocoEnv):
         lin_vel = (after_pos - before_pos) / self.dt
         return np.exp(-10*np.linalg.norm(target_vel - lin_vel))
 
-    # TODO: Add more reward functions
-
-    # ------------ step function-----------------
     def step(self, delta_q):
-        # Add delta_q to recent action
         action = delta_q + self.data.qpos[-12:]
         action = np.clip(action, a_min=self.lower_limits, a_max=self.upper_limits)
 
-        # save current position; do action; save new position
         before_pos = self.data.qpos[:3].copy()
-        self.do_simulation(action, self.frame_skip) # probably from Mujoco class
+        self.do_simulation(action, self.frame_skip)
         after_pos = self.data.qpos[:3].copy()
 
-        # calculate rewards
         lin_v_track_reward = self._reward_lin_vel(before_pos, after_pos)
         healthy_reward = self._reward_healthy()
-        # TODO: Add reward functions
         total_rewards = 5.0*lin_v_track_reward + 1.0*healthy_reward
 
         terminate = self.terminated
@@ -147,10 +132,6 @@ class GOEnv(MujocoEnv):
         return observation, total_rewards, terminate, info
 
     def reset_model(self):
-        """
-        Reset environment model
-        :return: observation concat[qpos, qvel]
-        """
         noise_low = -self._reset_noise_scale
         noise_high = self._reset_noise_scale
 

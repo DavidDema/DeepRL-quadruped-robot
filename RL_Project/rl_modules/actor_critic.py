@@ -46,49 +46,22 @@ class ActorCritic(nn.Module):
         return self.distribution.entropy().sum(dim=-1)
 
     def update_distribution(self, observations):
-        """
-        Update the distribution using newly found mean-action from the actor-NN with the observations as input
-        :param observations: Current state
-        :return:
-        """
         mean = self.actor(observations)
         self.distribution = Normal(mean, self.std)
 
     def act(self, observations, **kwargs):
-        """
-        Generate a random sample from the updated distribution
-        :param observations: Current state
-        :param kwargs:
-        :return:
-        """
         self.update_distribution(observations)
         return self.distribution.sample()
 
     def get_actions_log_prob(self, actions):
-        """
-        Compute the log-prob from the distribution using the actions as input
-        :param actions: Array of actions
-        :return: Sum of log-probability for actions
-        """
         return self.distribution.log_prob(actions).sum(dim=-1)
 
     def act_inference(self, observations):
-        """
-        Generate an action using the actor-NN with the current state (observations) as input
-        :param observations: Current state
-        :return: Output from the actor-NN using the current state (obs) as input
-        """
         with torch.no_grad():
             actions_mean = self.actor(observations)
 
         return actions_mean
 
     def evaluate(self, critic_observations, **kwargs):
-        """
-        Compute value-function for given state (critic_observation)
-        :param critic_observations: Current state
-        :param kwargs:
-        :return: Value-function result
-        """
         value = self.critic(critic_observations)
         return value
