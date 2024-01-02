@@ -1,11 +1,11 @@
 # deepRL_cheetah
 
+DONE:
+- implement GAE: as discribed in ActorCritic slides
+- implement PPO: ActorCritic slides, https://spinningup.openai.com/en/latest/algorithms/ppo.html
+- plot and dynamically update Actor/Critic Loss
+
 TODO:
-- reward-functions anpassen:
-  - Winkeländerung bestrafen (kleine Strafe für geringen Winkel, große Strafe für großen Winkel)
-    -> bezogen auf Startwinkel
-
-- GAE ist schon in compute_returns2 von David implementiert
-
-- PPO implementieren
-- Experience Replay
+- check implementations
+- change NN to LTSM?
+- adapt reward-functions
