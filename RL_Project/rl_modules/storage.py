@@ -55,7 +55,6 @@ class Storage:
 
     def compute_returns(self, last_values, gae=False):
         for step in reversed(range(self.max_timesteps)):
-            diff = 0
             if gae:
                 diff = self.max_timesteps - step
                 for l in range(diff):
@@ -67,14 +66,13 @@ class Storage:
                     delta = self.rewards[step + l] + next_is_not_terminate * self.gamma * next_values - self.values[step + l] # calculate advantage estimation
                     self.advantages[step] += ((self.gamma * self.lmbda)**l) * delta
             else:
-                for step in reversed(range(self.max_timesteps)):
-                    if step == self.max_timesteps - 1:
-                        next_values = last_values
-                    else:
-                        next_values = self.values[step + 1]
-                    next_is_not_terminate = 1.0 - self.dones[step]
-                    delta = self.rewards[step] + next_is_not_terminate * self.gamma * next_values - self.values[step]
-                    self.advantages[step] = delta
+                if step == self.max_timesteps - 1:
+                    next_values = last_values
+                else:
+                    next_values = self.values[step + 1]
+                next_is_not_terminate = 1.0 - self.dones[step]
+                delta = self.rewards[step] + next_is_not_terminate * self.gamma * next_values - self.values[step]
+                self.advantages[step] = delta
             self.returns[step] = self.advantages[step] + self.values[step]
 
 
