@@ -1,1 +1,2 @@
-./RL_Project/.venv/
+RL_Project/.venv/
+checkpoints/
