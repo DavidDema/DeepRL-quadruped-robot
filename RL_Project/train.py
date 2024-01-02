@@ -5,7 +5,7 @@ from rl_modules.actor_critic import ActorCritic
 import wandb
 from datetime import datetime
 import os
-
+import torch
 
 def train():
     if torch.cuda.is_available():
@@ -24,7 +24,7 @@ def train():
     save_dir = f'checkpoints/{log_name}'
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
-    rl_agent.learn(save_dir, num_learning_iterations=1000, num_steps_per_val=100)
+    rl_agent.learn(save_dir, num_learning_iterations=1000, num_steps_per_val=100) # start to learn!!!
 
 
 if __name__ == '__main__':
