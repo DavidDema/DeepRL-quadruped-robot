@@ -147,20 +147,20 @@ class RLAgent(nn.Module):
             mean_value_loss_collection.append(mean_value_loss)
             mean_actor_loss_collection.append(mean_actor_loss)
 
-            self.plot_results(save_dir, infos, rewards_collection, mean_actor_loss_collection, mean_value_loss_collection, it)
+            self.plot_results(save_dir, infos, rewards_collection, mean_actor_loss_collection, mean_value_loss_collection, it, num_learning_iterations)
 
             if it % num_steps_per_val == 0:
                 infos = self.play(is_training=False)
                 self.save_model(os.path.join(save_dir, f'{it}.pt'))
 
     @staticmethod
-    def plot_results(save_dir, infos, rewards, actor_losses, critic_losses, it):
+    def plot_results(save_dir, infos, rewards, actor_losses, critic_losses, it, num_learning_iterations):
 
         plt.clf()
         plt.plot(np.array(actor_losses), label='actor')
         plt.plot(np.array(critic_losses), label='critic')
         plt.plot(np.array(rewards), label='reward')
-        plt.title("Actor/Critic Loss (it:" + str(it) + ")")
+        plt.title("Actor/Critic Loss (" + str(it) + "/" + str(num_learning_iterations) + ")")
         plt.ylabel("Loss")
         plt.xlabel("Episodes")
         plt.savefig(os.path.join(save_dir, f'ac_loss.png'))
