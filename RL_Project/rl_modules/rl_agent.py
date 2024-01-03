@@ -63,7 +63,7 @@ class RLAgent(nn.Module):
         last_values = self.actor_critic.evaluate(last_obs).detach().cpu().numpy()
         return self.storage.compute_returns(last_values)
 
-    def update(self, ppo=False):
+    def update(self, ppo=True):
         mean_value_loss = 0
         mean_actor_loss = 0
         generator = self.storage.mini_batch_generator(self.num_batches, self.num_epochs, device=self.device) # get data from storage
