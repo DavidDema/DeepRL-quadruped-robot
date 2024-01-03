@@ -13,7 +13,7 @@
 ## RESULTS:
 
 ### Actor/Critic losses without changes
-![losseswithout changes](RL_Project/results/ac_loss.png)
+![losses without changes](RL_Project/results/ac_loss.png)
 
 ### Actor/Critic losses without changes
 ![losses with GAE](RL_Project/results/ac_loss_gae.png)
