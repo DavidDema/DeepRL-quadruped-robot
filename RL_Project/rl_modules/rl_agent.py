@@ -143,7 +143,7 @@ class RLAgent(nn.Module):
             # improve policy with collected data
             mean_value_loss, mean_actor_loss = self.update() # update
 
-            rewards_collection.append(np.sum(self.storage.rewards)/len(self.storage.rewards))
+            rewards_collection.append(np.mean(self.storage.rewards))
             mean_value_loss_collection.append(mean_value_loss)
             mean_actor_loss_collection.append(mean_actor_loss)
 
@@ -159,6 +159,7 @@ class RLAgent(nn.Module):
         plt.clf()
         plt.plot(np.array(actor_losses), label='actor')
         plt.plot(np.array(critic_losses), label='critic')
+        plt.plot(np.array(rewards), label='reward')
         plt.title("Actor/Critic Loss (it:" + str(it) + ")")
         plt.ylabel("Loss")
         plt.xlabel("Episodes")
@@ -166,28 +167,6 @@ class RLAgent(nn.Module):
         plt.legend()
         plt.draw()
         plt.pause(0.1)
-
-        # min_reward = infos[1]["min_reward"]
-        # max_reward = infos[1]["max_reward"]
-        # reward = np.array(rewards)
-        # ylabel = "Avg. Reward"
-        # reward_norm = (reward - min_reward) / (max_reward - min_reward)
-
-        # normalize_reward = False
-        # if normalize_reward:
-        #     reward = reward_norm
-        #     ylabel = "Normalized " + ylabel
-        #     min_reward = 0
-        #     max_reward = 1
-
-        # plt.plot(reward)
-        # plt.title("Rewards")
-        # plt.ylabel(ylabel)
-        # plt.xlabel("Episodes")
-        # plt.axhline(y=min_reward, c="grey", ls="--", alpha=0.6)
-        # plt.axhline(y=max_reward, c="grey", ls="--", alpha=0.6)
-        # plt.savefig(os.path.join(save_dir, f'rewards.png'))
-        # plt.show()
 
     def save_model(self, path):
         torch.save(self.state_dict(), path)
