@@ -53,8 +53,9 @@ class Storage:
     def clear(self):
         self.step = 0
 
-    def compute_returns(self, last_values, gae=False):
+    def compute_returns(self, last_values, gae=True):
         for step in reversed(range(self.max_timesteps)):
+            self.advantages[step] = 0 
             if gae:
                 diff = self.max_timesteps - step
                 for l in range(diff):
