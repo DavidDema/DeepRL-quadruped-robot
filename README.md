@@ -3,8 +3,8 @@
 ## DONE:
 - implement GAE: as discribed in ActorCritic slides
 - implement PPO: ActorCritic slides, https://spinningup.openai.com/en/latest/algorithms/ppo.html
-- plot and dynamically update Actor/Critic Loss
-- use LTSM as hidden layer for network
+- plot and dynamically update Actor/Critic loss and rewards
+- use LTSM as hidden layer for network: https://github.com/Kaixhin/ACER/tree/master
 
 ## TODO:
 - check implementations
