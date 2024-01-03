@@ -1,6 +1,6 @@
 from torch import nn
 from torch.nn import init
-
+import torch
 
 class Dense(nn.Module):
     def __init__(self,
@@ -45,6 +45,18 @@ class Dense(nn.Module):
 
         return x
 
+class LSTM(nn.Module):
+    def __init__(self, input_dim, hidden_dim, layer_dim, output_dim):
+        super(LSTM, self).__init__()
+        
+        self.hidden_dim = hidden_dim
+        self.layer_dim = layer_dim
+        self.lstm = nn.LSTMCell(hidden_dim, hidden_dim)
+
+    def forward(self, x):
+        out, _ = self.lstm(x)
+
+        return out
 
 class MLP(nn.Module):
     def __init__(self,
@@ -54,19 +66,28 @@ class MLP(nn.Module):
                  n_layers=2,
                  act=nn.ELU(),
                  output_act=None,
+                 lstm=True,
                  **kwargs):
         super().__init__()
         n_hidden = n_layers - 2
         input_layer = Dense(dim_in=dim_in, dim_out=dim_hidden, activation=act, **kwargs)
         layers = [input_layer]
-        for i in range(n_hidden):
-            layers.append(Dense(dim_in=dim_hidden, dim_out=dim_hidden, activation=act, **kwargs))
+        if lstm:
+            hidden_layer = LSTM(dim_hidden, dim_hidden, n_layers, dim_hidden)
+            layers.append(hidden_layer)
+        else:
+            for i in range(n_hidden):
+                layers.append(Dense(dim_in=dim_hidden, dim_out=dim_hidden, activation=act, **kwargs))
+        
         output_layer = Dense(dim_in=dim_hidden, dim_out=dim_out, activation=output_act, **kwargs)
         layers.append(output_layer)
 
         self.model = nn.Sequential(*layers)
 
     def forward(self, x):
+        if x.dim() == 1:
+            x = x.unsqueeze(0) 
+
         x = self.model(x)
 
         return x
