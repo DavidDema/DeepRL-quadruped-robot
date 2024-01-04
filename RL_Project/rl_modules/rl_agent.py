@@ -131,13 +131,10 @@ class RLAgent(nn.Module):
         mean_value_loss_collection = []
         mean_actor_loss_collection = []
 
-        # Enable interactive mode for non-blocking plotting
         plt.ion()
-    
-        # Display the plot window in non-blocking mode
         plt.show(block=False)
         
-        for it in range(num_learning_iterations):
+        for it in range(1, num_learning_iterations + 1):
             # play games to collect data
             infos = self.play(is_training=True) # play
             # improve policy with collected data
@@ -159,7 +156,7 @@ class RLAgent(nn.Module):
         plt.clf()
         plt.plot(np.array(actor_losses), label='actor')
         plt.plot(np.array(critic_losses), label='critic')
-        plt.plot(np.array(rewards), label='reward')
+        plt.plot(np.array(rewards) * 100, label='reward (x100)')
         plt.title("Actor/Critic Loss (" + str(it) + "/" + str(num_learning_iterations) + ")")
         plt.ylabel("Loss")
         plt.xlabel("Episodes")
@@ -167,6 +164,30 @@ class RLAgent(nn.Module):
         plt.legend()
         plt.draw()
         plt.pause(0.1)
+
+        keys = ['track_vel_reward',
+                'joint_pos_reward',
+                'pitchroll_rate_reward',
+                'orient_reward',
+                'pitchroll_reward',
+                'yaw_rate_reward',
+                'healthy_reward',
+                'total_reward']
+        infos_array = np.array([[info[key] for key in keys] for info in infos])
+        mean_values = np.mean(infos_array, axis=0)
+        
+        keys_print = ['track_vel_reward      : ',
+                      'joint_pos_reward      : ',
+                      'pitchroll_rate_reward : ',
+                      'orient_reward         : ',
+                      'pitchroll_reward      : ',
+                      'yaw_rate_reward       : ',
+                      'healthy_reward        : ',
+                      'total_reward          : ',]
+        print("--------- Rewards ---------")
+        for i, key in enumerate(keys_print):
+            print(key + str(mean_values[i])) 
+
 
     def save_model(self, path):
         torch.save(self.state_dict(), path)
