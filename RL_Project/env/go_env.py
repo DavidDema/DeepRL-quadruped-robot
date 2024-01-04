@@ -56,6 +56,7 @@ class GOEnv(MujocoEnv):
 
     @property
     def init_joints(self):
+        # base position (x, y, z), base orientation (quaternion), 4x leg position (3 joints) 
         return np.array([0, 0, 0.37, 1, 0, 0, 0] + [0, 0.7, -1.4]*4)
 
     @property
@@ -74,7 +75,7 @@ class GOEnv(MujocoEnv):
         y = np.arcsin(np.clip(2 * (q1 * q3 + q0 * q2), -1, 1))
         z = np.arctan2(2 * (q0 * q3 - q1 * q2), 1 - 2 * (q2 * q2 + q3 * q3))
 
-        return [x, y, z]
+        return np.array([x, y, z])
 
     @property
     def is_healthy(self):
@@ -98,33 +99,83 @@ class GOEnv(MujocoEnv):
         return np.concatenate([qpos, qvel])
 
     # ------------ reward functions----------------
-    def _reward_healthy(self):
+    def _reward_healthy(self, scaling_factor=1.0):
         return (self.is_healthy - 1) * 5
 
-    def _reward_lin_vel(self, before_pos, after_pos):
+    def _reward_lin_vel(self, before_pos, after_pos, scaling_factor=10.0):
         target_vel = np.array([0.5, 0, 0])
         lin_vel = (after_pos - before_pos) / self.dt
-        return np.exp(-10*np.linalg.norm(target_vel - lin_vel))
+        return scaling_factor * np.exp(-np.linalg.norm(target_vel - lin_vel))
+
+    def _reward_z_vel(self, before_pos, after_pos, scaling_factor=10.0):
+        # penalize movement in z direction
+        z_vel = np.abs((after_pos[2] - before_pos[2])) / self.dt
+        return -scaling_factor * z_vel
+
+    def _reward_pitch_roll(self, orientation, scaling_factor=10.0):
+        # penalty for non-flat base orientation
+        pitch_penalty = np.abs(orientation[0])  # pitch
+        roll_penalty = np.abs(orientation[1])   # roll
+        return -scaling_factor * (pitch_penalty ** 2 + roll_penalty ** 2)
+    
+    def _reward_yaw(self, yaw, before_pos, after_pos, scaling_factor=10.0):
+        # reward movement in forward direction
+        direction = (after_pos[:2] - before_pos[:2])
+        target_yaw = np.arctan2(direction[1], direction[0])
+        return -scaling_factor * np.linalg.norm(yaw - target_yaw)
+
+    def _reward_yaw_rate(self, before_orientation, after_orientation, scaling_factor=10.0):
+        # penalty for high yaw rate
+        acceleration = np.abs((after_orientation[2] - before_orientation[2]) / self.dt)
+        return -scaling_factor * acceleration
+
+    def _reward_pitch_roll_rate(self, before_orientation, after_orientation, scaling_factor=10.0):
+        # penalty for high pitch and roll rate
+        acceleration = np.abs((after_orientation[:2] - before_orientation[:2]) / self.dt)
+        return -scaling_factor * acceleration.mean()
+    
+    def _reward_joint_pose(self, current_joints, init_joints, scaling_factor=10.0):
+        # reward joint positions similar to init position
+        return -scaling_factor * np.linalg.norm(init_joints - current_joints)
 
     def step(self, delta_q):
         action = delta_q + self.data.qpos[-12:]
         action = np.clip(action, a_min=self.lower_limits, a_max=self.upper_limits)
 
         before_pos = self.data.qpos[:3].copy()
+        before_vel = self.data.qvel[:3].copy()
+        before_orientation = self.base_rotation
         self.do_simulation(action, self.frame_skip)
         after_pos = self.data.qpos[:3].copy()
+        after_vel = self.data.qvel[:3].copy()
+        after_orientation = self.base_rotation
+        after_yaw = after_orientation[2]
+        after_joints = self.data.qpos[7:]
 
-        lin_v_track_reward = self._reward_lin_vel(before_pos, after_pos)
-        healthy_reward = self._reward_healthy()
-        total_rewards = 5.0*lin_v_track_reward + 1.0*healthy_reward
+        track_vel_reward = self._reward_lin_vel(before_pos, after_pos, scaling_factor=1.5) # 1.5
+        
+        healthy_reward = self._reward_healthy(scaling_factor=1.0)
+        yaw_rate_reward = self._reward_yaw_rate(before_orientation, after_orientation, scaling_factor=0.8) # 0.8
+        pitchroll_rate_reward = self._reward_pitch_roll_rate(before_orientation, after_orientation, scaling_factor=0.05) # 0.05 
+        pitchroll_reward = self._reward_pitch_roll(after_orientation, scaling_factor=5.0) # 5.0
+        joint_pos_reward = self._reward_joint_pose(after_joints, self.init_joints[7:], scaling_factor=0.3) # 0.3
+        orient_reward = self._reward_yaw(after_yaw, before_pos, after_pos, scaling_factor=0.1) # 0.1
+    
+        total_rewards = track_vel_reward + (yaw_rate_reward + pitchroll_reward + \
+                        orient_reward + pitchroll_rate_reward + joint_pos_reward)
 
         terminate = self.terminated
         observation = self._get_obs()
         info = {
             'total_reward': total_rewards,
-            'lin_v_track_reward': lin_v_track_reward,
-            "healthy_reward": healthy_reward,
-            "traverse": self.data.qpos[0],
+            'joint_pos_reward': joint_pos_reward,
+            'pitchroll_rate_reward': pitchroll_rate_reward,
+            'orient_reward': orient_reward,
+            'pitchroll_reward': pitchroll_reward,
+            'yaw_rate_reward': yaw_rate_reward,
+            'track_vel_reward': track_vel_reward,
+            'healthy_reward': healthy_reward,
+            'traverse': self.data.qpos[0],
         }
 
         if self.render_mode == "human":
