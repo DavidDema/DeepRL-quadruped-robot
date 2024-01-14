@@ -10,7 +10,7 @@ class ActorCritic(nn.Module):
                  state_dim,
                  action_dim,
                  hidden_dim=512,
-                 n_layers=2,
+                 n_layers=3,       #2 (Ausgangswert)
                  init_std=1.0
                  ):
         super().__init__()

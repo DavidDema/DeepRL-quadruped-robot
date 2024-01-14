@@ -17,8 +17,8 @@ def test():
     storage = Storage(obs_dim=go_env.obs_dim, action_dim=go_env.action_dim, max_timesteps=1000)
     rl_agent = RLAgent(env=go_env, actor_critic=actor_critic, storage=storage, device=device)
 
-    #rl_agent.load_model('checkpoints/2024-01-10/10-34-04/300.pt')
-    rl_agent.load_model('checkpoints/model.pt')
+    rl_agent.load_model('checkpoints/2024-01-14/15-13-30/25.pt')
+    #rl_agent.load_model('checkpoints/model.pt')
     rl_agent.play(is_training=False)
 
 if __name__ == '__main__':

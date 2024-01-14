@@ -54,14 +54,14 @@ class GOEnv(MujocoEnv):
     @property
     def lower_limits(self):
         #Limits der einzelnen Gelenke [oben rechts-links, oben vorne-hinten, unten vorne-hinten ]
-        #return np.array([-0.863, -0.686, -2.818]*4) #(Anfangsdaten)
-        #return np.array([-0.00, -0.5, -1.00]*4)
-        return np.array([-0.0, -0.0, -6.318]*4)
+        #return np.array([-0.863, -0.686, -2.818]*4) (Anfangsdaten)
+        return np.array([-0.00, -1.0, -1.00]*4)
+
     @property
     def upper_limits(self):
-        #return np.array([0.863, 4.501, -0.888]*4) #(Anfangsdaten)
-        #return np.array([0.00, 1.0, 0.00]*4)
-        return np.array([0.0, 0.0, -0.888]*4)
+        #return np.array([0.863, 4.501, -0.888]*4) (Anfangsdaten)
+        return np.array([0.00, 2.0, 0.00]*4)
+
     @property
     def init_joints(self):
         # base position (x, y, z), base orientation (quaternion), 4x leg position (3 joints) 
@@ -115,8 +115,7 @@ class GOEnv(MujocoEnv):
             qpos = qpos[2:]
 
         #print(self.data.geom_xpos[[10,19,28,37]])
-        print(self.data.contact)
-        
+        #print(self.data.contact.geom2)
     
         return np.concatenate([qpos, qvel])
     
@@ -138,7 +137,7 @@ class GOEnv(MujocoEnv):
 
     def _reward_lin_vel(self, before_pos, after_pos, scaling_factor=10.0):
         #target_vel = np.array([0.5, 0, 0]) (Ausgangswerte)
-        target_vel = np.array([0.5, 0, 0])
+        target_vel = np.array([0.3, 0, 0])
         lin_vel = (after_pos - before_pos) / self.dt
         return scaling_factor * np.exp(-np.linalg.norm((target_vel - lin_vel)**2)) ## **2 von mir hinzugefügt (Piet), nature Paper;
 
@@ -224,25 +223,25 @@ class GOEnv(MujocoEnv):
         feet_vel = feet_pos / self.dt
         feet_cont = self.data.contact.geom2
 
-        track_vel_reward = self._reward_lin_vel(before_pos, after_pos, scaling_factor=2.0) # 1.5; fkt 0.5
-        living_reward = self._reward_living(timestep=self.timestep, max_timesteps=self.max_timesteps, scaling_factor=2.0, positive=False) # 3.5; fkt 5
+        track_vel_reward = self._reward_lin_vel(before_pos, after_pos, scaling_factor=0.5) # 1.5
+        living_reward = self._reward_living(timestep=self.timestep, max_timesteps=self.max_timesteps, scaling_factor=5, positive=False) # 3.5
         #living_reward = 0
         
-        healthy_reward = self._reward_healthy(scaling_factor=2.0) # 1.0; fkt 15
-        yaw_rate_reward = self._reward_yaw_rate(before_orientation, after_orientation, scaling_factor=2.0) # 0.8; fkt 0.2
-        pitchroll_rate_reward = self._reward_pitch_roll_rate(before_orientation, after_orientation, scaling_factor=2.0) # 0.05; fkt 0.2
-        pitchroll_reward = self._reward_pitch_roll(after_orientation, scaling_factor=2.0) # 5.0; fkt 2.0
-        joint_pos_reward = self._reward_joint_pose(after_joints, self.init_joints[7:], scaling_factor=2.0) # 0.3; fkt 0.3
-        orient_reward = self._reward_yaw(after_yaw, before_pos, after_pos, scaling_factor=2.0) # 0.1; fkt 0.1
-        z_vel_reward = self._reward_z_vel(before_pos=before_pos, after_pos=after_pos, scaling_factor=2.0) # 1.0; fkt 2.0
-        z_pos_reward = self._reward_z_pos(after_pos=after_pos, scaling_factor=2.0) # 2.0; fkt 2.0
-        foot_slip_reward = self._reward_foot_slip(feet_pos, feet_vel, feet_cont, scaling_factor=2.0) # fkt 5.0
-        two_feet_reward = self._reward_two_feet(feet_cont, scaling_factor = 2.0) # fkt 5.0
-        total_rewards = track_vel_reward + living_reward + (yaw_rate_reward + pitchroll_reward + \
-                        orient_reward + pitchroll_rate_reward + z_vel_reward + z_pos_reward + \
-                        foot_slip_reward + two_feet_reward)
+        healthy_reward = self._reward_healthy(scaling_factor=15.0) # 1.0
+        yaw_rate_reward = self._reward_yaw_rate(before_orientation, after_orientation, scaling_factor=0.2) # 0.8
+        pitchroll_rate_reward = self._reward_pitch_roll_rate(before_orientation, after_orientation, scaling_factor=0.2) # 0.05 
+        pitchroll_reward = self._reward_pitch_roll(after_orientation, scaling_factor=2.0) # 5.0
+        joint_pos_reward = self._reward_joint_pose(after_joints, self.init_joints[7:], scaling_factor=0.3) # 0.3
+        orient_reward = self._reward_yaw(after_yaw, before_pos, after_pos, scaling_factor=0.1) # 0.1
+        z_vel_reward = self._reward_z_vel(before_pos=before_pos, after_pos=after_pos, scaling_factor=2.0) # 1.0
+        z_pos_reward = self._reward_z_pos(after_pos=after_pos, scaling_factor=2.0) # 2.0
+        foot_slip_reward = self._reward_foot_slip(feet_pos, feet_vel, feet_cont, scaling_factor=5.0)
+        two_feet_reward = self._reward_two_feet(feet_cont, scaling_factor = 5.0)
+        #total_rewards = track_vel_reward + living_reward + (yaw_rate_reward + pitchroll_reward + \
+                        #orient_reward + pitchroll_rate_reward + z_vel_reward + z_pos_reward + \
+                        #foot_slip_reward + two_feet_reward)
 
-        #total_rewards = track_vel_reward + living_reward + (foot_slip_reward + two_feet_reward + z_pos_reward) 
+        total_rewards = track_vel_reward + living_reward + foot_slip_reward + two_feet_reward + z_pos_reward 
 
         terminate = self.terminated
         observation = self._get_obs()

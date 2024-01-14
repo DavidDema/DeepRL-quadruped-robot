@@ -19,7 +19,7 @@ class RLAgent(nn.Module):
                  num_epochs=1,
                  device='cpu',
                  action_scale=0.3,
-                 ppo_eps=0.2,
+                 ppo_eps=0.2, # 0.2 Ausgangswert
                  target_kl=0.5
                  ):
         super().__init__()
@@ -202,6 +202,9 @@ class RLAgent(nn.Module):
         print("Losses:")
         print(f"Critic loss              : {critic_losses[-1]}")
         print(f"Actor loss               : {actor_losses[-1]}")
+        
+        
+        
 
         info_mean = infos[0]
         for key in info_mean.keys():
