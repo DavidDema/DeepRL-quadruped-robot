@@ -39,9 +39,13 @@ class RLAgent(nn.Module):
         self.ppo_eps = ppo_eps
         self.target_kl = target_kl
 
+        # Epsilon-Greedy
+        self.exploration_prob = 0.9
+
+
     def act(self, obs):
         # Compute the actions and values
-        action = self.actor_critic.act(obs).squeeze()
+        action = self.actor_critic.act(obs, exploration_prob=self.exploration_prob).squeeze()
         self.transition.action = action.detach().cpu().numpy()
         self.transition.value = self.actor_critic.evaluate(obs).squeeze().detach().cpu().numpy()
         self.transition.action_log_prob = self.actor_critic.get_actions_log_prob(action).detach().cpu().numpy()
@@ -69,7 +73,7 @@ class RLAgent(nn.Module):
         generator = self.storage.mini_batch_generator(self.num_batches, self.num_epochs, device=self.device) # get data from storage
 
         for obs_batch, actions_batch, target_values_batch, advantages_batch, actions_log_prob_old_batch in generator:
-            self.actor_critic.act(obs_batch) # evaluate policy
+            self.actor_critic.act(obs_batch, exploration_prob=self.exploration_prob) # evaluate policy
             actions_log_prob_batch = self.actor_critic.get_actions_log_prob(actions_batch)
 
             # compute losses
@@ -104,21 +108,25 @@ class RLAgent(nn.Module):
         return mean_value_loss, mean_actor_loss
 
     def play(self, is_training=True, early_termination=True):
+        last_termination_timestep = 0
         obs, _ = self.env.reset() # first reset env
         infos = []
-        for _ in range(self.storage.max_timesteps): # rollout an episode
+        for t in range(self.storage.max_timesteps): # rollout an episode
             obs_tensor = torch.from_numpy(obs).to(self.device).float().unsqueeze(dim=0)
             with torch.no_grad():
                 if is_training:
                     action = self.act(obs_tensor) # sample an action from policy
                 else:
                     action = self.inference(obs_tensor)
+            self.env.timestep = t-last_termination_timestep
+            self.env.max_timesteps = self.storage.max_timesteps - last_termination_timestep
             obs_next, reward, terminate, info = self.env.step(action*self.action_scale) # perform one step action
             infos.append(info)
             if is_training:
                 self.store_data(obs, reward, terminate) # collect data to storage
             if terminate and early_termination:
                 obs, _ = self.env.reset()
+                last_termination_timestep = t
             else:
                 obs = obs_next
         if is_training:
@@ -130,15 +138,25 @@ class RLAgent(nn.Module):
         rewards_collection = []
         mean_value_loss_collection = []
         mean_actor_loss_collection = []
+        value_loss_init = 0
+        actor_loss_init = 0
+        reward_init = 0
 
         plt.ion()
         plt.show(block=False)
         
         for it in range(1, num_learning_iterations + 1):
+
+            progress = it/(num_learning_iterations+1)
+            min_prob, max_prob = 0.05, 1
+            self.exploration_prob = np.exp(-(4*progress-np.log(max_prob-min_prob)))+min_prob
+            print(f"Exploration prob: {self.exploration_prob}")
+
             # play games to collect data
             infos = self.play(is_training=True) # play
             # improve policy with collected data
             mean_value_loss, mean_actor_loss = self.update() # update
+
 
             rewards_collection.append(np.mean(self.storage.rewards))
             mean_value_loss_collection.append(mean_value_loss)
@@ -155,8 +173,8 @@ class RLAgent(nn.Module):
 
         plt.clf()
         plt.plot(np.array(actor_losses), label='actor')
-        plt.plot(np.array(critic_losses), label='critic')
-        plt.plot(np.array(rewards) * 100, label='reward (x100)')
+        plt.plot(np.array(critic_losses) / 500, label='critic')
+        plt.plot(np.array(rewards), label='reward (x100)')
         plt.title("Actor/Critic Loss (" + str(it) + "/" + str(num_learning_iterations) + ")")
         plt.ylabel("Loss")
         plt.xlabel("Episodes")
@@ -165,32 +183,25 @@ class RLAgent(nn.Module):
         plt.draw()
         plt.pause(0.1)
 
-        keys = ['track_vel_reward',
-                'joint_pos_reward',
-                'pitchroll_rate_reward',
-                'orient_reward',
-                'pitchroll_reward',
-                'yaw_rate_reward',
-                'healthy_reward',
-                'total_reward']
-        infos_array = np.array([[info[key] for key in keys] for info in infos])
-        mean_values = np.mean(infos_array, axis=0)
+        info_mean = infos[0]
+        for key in info_mean.keys():
+            key_values = []
+            for info in infos:
+                key_values.append(info[key])
+            info_mean[key] = np.mean(key_values)
         
-        keys_print = ['track_vel_reward      : ',
-                      'joint_pos_reward      : ',
-                      'pitchroll_rate_reward : ',
-                      'orient_reward         : ',
-                      'pitchroll_reward      : ',
-                      'yaw_rate_reward       : ',
-                      'healthy_reward        : ',
-                      'total_reward          : ',]
-        print("--------- Rewards ---------")
-        for i, key in enumerate(keys_print):
-            print(key + str(mean_values[i])) 
+
+        print("------ Rewards ------ ")
+        max_length = max(len(key) for key in info_mean.keys())
+        for key in info_mean.keys():
+            print(key.ljust(max_length) + "\t : " + str(info_mean[key]))
+
 
 
     def save_model(self, path):
         torch.save(self.state_dict(), path)
+        torch.save(self.state_dict(), 'checkpoints/model.pt')
+
 
     def load_model(self, path):
         self.load_state_dict(torch.load(path))

@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from networks.networks import MLP
 from torch.distributions import Normal
-
+import numpy as np
 
 class ActorCritic(nn.Module):
     def __init__(self,
@@ -49,9 +49,16 @@ class ActorCritic(nn.Module):
         mean = self.actor(observations)
         self.distribution = Normal(mean, self.std)
 
-    def act(self, observations, **kwargs):
-        self.update_distribution(observations)
-        return self.distribution.sample()
+    def act(self, observations, exploration_prob, explore_exploit=True, **kwargs):
+        if explore_exploit:     
+            self.update_distribution(observations)
+            e = np.random.choice([0, 1], 1, p=[(1-exploration_prob), exploration_prob])[0]
+            if e:
+                return self.distribution.sample()
+            else:
+                return self.act_inference(observations)
+        else:
+            return self.distribution.sample()
 
     def get_actions_log_prob(self, actions):
         return self.distribution.log_prob(actions).sum(dim=-1)

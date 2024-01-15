@@ -19,7 +19,7 @@ class Storage:
                  obs_dim,
                  action_dim,
                  max_timesteps,
-                 gamma=0.98,
+                 gamma=0.995,
                  lmbda=0.96):
         self.max_timesteps = max_timesteps
         self.gamma = gamma
