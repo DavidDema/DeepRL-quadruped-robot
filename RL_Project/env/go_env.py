@@ -15,7 +15,7 @@ class GOEnv(MujocoEnv):
     }
 
     def __init__(self,
-                 healthy_z_range=(0.3, 0.5),
+                 healthy_z_range=(0.15, 0.5),
                  reset_noise_scale=1e-2,
                  terminate_when_unhealthy=True,
                  exclude_current_positions_from_observation=False,
@@ -52,11 +52,13 @@ class GOEnv(MujocoEnv):
 
     @property
     def lower_limits(self):
-        return np.array([-0.863, -0.686, -2.818]*4)
+        # return np.array([-0.863, -0.686, -2.818]*4)
+        return np.array([-0.7, -1.0, 0.05] * 4)
 
     @property
     def upper_limits(self):
-        return np.array([0.863, 4.501, -0.888]*4)
+        # return np.array([0.863, 4.501, -0.888]*4)
+        return np.array([0.52, 2.1, 2.1] * 4)
 
     @property
     def init_joints(self):
@@ -145,19 +147,41 @@ class GOEnv(MujocoEnv):
         # reward joint positions similar to init position
         return -scaling_factor * np.linalg.norm(init_joints - current_joints)
 
+    def _reward_foot_slip(self, before_feet_pos, after_feet_pos, feet_contact, scaling_factor=1.0):
+        for id in feet_contact:
+            
+            sum_velocity_squared = 0.0
+            feet_vel = before_feet_pos - after_feet_pos
+
+            if id in [10, 19, 28, 37]:
+                sum_velocity_squared += np.sum(feet_vel[id][:2]**2)
+                    
+            return -scaling_factor * sum_velocity_squared
+            
+        else:
+            return 0.0
+
+
     def step(self, delta_q):
         action = delta_q + self.data.qpos[-12:]
-        action = np.clip(action, a_min=self.lower_limits, a_max=self.upper_limits)
+        action_torque = action * 1.0 + self.data.qvel[-12:] * 0.2
+        action = np.clip(action_torque, a_min=self.lower_limits, a_max=self.upper_limits)
 
         before_pos = self.data.qpos[:3].copy()
         before_vel = self.data.qvel[:3].copy()
+        before_feet_pos = self.data.geom_xpos.copy()
+  
         before_orientation = self.base_rotation
         self.do_simulation(action, self.frame_skip)
         after_pos = self.data.qpos[:3].copy()
+        after_feet_pos = self.data.geom_xpos.copy()
         after_vel = self.data.qvel[:3].copy()
         after_orientation = self.base_rotation
         after_yaw = after_orientation[2]
         after_joints = self.data.qpos[7:]
+
+        feet_contact = self.data.contact.geom2
+        torque = self.data.qfrc_actuator
 
         track_vel_reward = self._reward_lin_vel(before_pos, after_pos, scaling_factor=1.5) # 1.5
         
@@ -168,9 +192,10 @@ class GOEnv(MujocoEnv):
         pitchroll_reward = self._reward_pitch_roll(after_orientation, scaling_factor=5.0) # 5.0
         joint_pos_reward = self._reward_joint_pose(after_joints, self.init_joints[7:], scaling_factor=0.3) # 0.3
         orient_reward = self._reward_yaw(after_yaw, before_pos, after_pos, scaling_factor=0.1) # 0.1
-    
+        foot_slip_reward = self._reward_foot_slip(before_feet_pos, after_feet_pos, feet_contact, scaling_factor=1.0)
+
         total_rewards = track_vel_reward + (healthy_reward + yaw_rate_reward + pitchroll_reward + \
-                        orient_reward + pitchroll_rate_reward + joint_pos_reward + living_reward)
+                        orient_reward + pitchroll_rate_reward + living_reward + foot_slip_reward)
 
         terminate = self.terminated
         observation = self._get_obs()
@@ -181,6 +206,7 @@ class GOEnv(MujocoEnv):
             'orient_reward': orient_reward,
             'pitchroll_reward': pitchroll_reward,
             'living_reward': living_reward,
+            'foot_slip_reward': foot_slip_reward,
             'yaw_rate_reward': yaw_rate_reward,
             'track_vel_reward': track_vel_reward,
             'healthy_reward': healthy_reward,
