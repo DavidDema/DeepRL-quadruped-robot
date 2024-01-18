@@ -19,7 +19,7 @@ def train():
     # create actor critic
     actor_critic = ActorCritic(state_dim=go_env.obs_dim, action_dim=go_env.action_dim).to(device)
     # create storage to save data
-    storage = Storage(obs_dim=go_env.obs_dim, action_dim=go_env.action_dim, max_timesteps=1000)
+    storage = Storage(obs_dim=go_env.obs_dim, action_dim=go_env.action_dim, max_timesteps=2000) ##(YAN)## increase (default: 1000)
     rl_agent = RLAgent(env=go_env, actor_critic=actor_critic, storage=storage, device=device)
 
     save_dir = f'checkpoints/{log_name}'

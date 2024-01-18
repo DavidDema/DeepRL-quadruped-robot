@@ -20,7 +20,13 @@ class RLAgent(nn.Module):
                  device='cpu',
                  action_scale=0.3,
                  ppo_eps=0.2, # 0.2 Ausgangswert
-                 target_kl=0.5
+                 target_kl=0.5,
+                 
+                 desired_kl=0.01, ##Kira PPO## ##0.01
+                 learning_rate=1e-3,
+                 use_clipped_value_loss=True,
+                 entropy_coef=0.0,
+                 schedule="adaptive", # fixed
                  ):
         super().__init__()
         self.env = env
@@ -39,6 +45,14 @@ class RLAgent(nn.Module):
         self.ppo_eps = ppo_eps
         self.target_kl = target_kl
 
+        ##Kira PPO##
+        self.desired_kl = desired_kl
+        self.learning_rate = learning_rate
+        self.use_clipped_value_loss = use_clipped_value_loss
+        self.entropy_coef = entropy_coef
+        self.schedule = schedule
+
+
         # Epsilon-Greedy
         self.exploration_prob = 0.9
 
@@ -48,6 +62,13 @@ class RLAgent(nn.Module):
         self.transition.action = action.detach().cpu().numpy()
         self.transition.value = self.actor_critic.evaluate(obs).squeeze().detach().cpu().numpy()
         self.transition.action_log_prob = self.actor_critic.get_actions_log_prob(action).detach().cpu().numpy()
+        
+        ##Kira PPO##
+        action_mean = self.actor_critic.action_mean.squeeze()
+        self.transition.action_mean = action_mean.detach().cpu().numpy()
+        action_sigma = self.actor_critic.action_std.squeeze()
+        self.transition.action_sigma = action_sigma.detach().cpu().numpy()
+
         return self.transition.action
 
     def inference(self, obs):
@@ -66,15 +87,16 @@ class RLAgent(nn.Module):
         last_values = self.actor_critic.evaluate(last_obs).detach().cpu().numpy()
         return self.storage.compute_returns(last_values)
 
-    def update(self, ppo=True):
+    def update(self, ppo=False, ppo_eth=True):
         mean_value_loss = 0
         mean_actor_loss = 0
         generator = self.storage.mini_batch_generator(self.num_batches, self.num_epochs, device=self.device) # get data from storage
 
+        '''
         for obs_batch, actions_batch, target_values_batch, advantages_batch, actions_log_prob_old_batch in generator:
             self.actor_critic.act(obs_batch, exploration_prob=self.exploration_prob) # evaluate policy
             actions_log_prob_batch = self.actor_critic.get_actions_log_prob(actions_batch)
-
+            
             # compute losses
             if ppo:
                 policy_ratio = torch.exp(actions_log_prob_batch - actions_log_prob_old_batch)
@@ -90,15 +112,91 @@ class RLAgent(nn.Module):
 
             critic_loss = advantages_batch.pow(2).mean()
             loss = actor_loss + self.value_loss_coef * critic_loss
+        '''
+            
+            
+            ##Kira PPO##
+        for (obs_batch, actions_batch, target_values_batch, advantages_batch, actions_log_prob_old_batch, old_mu_batch,
+             old_sigma_batch, returns_batch) in generator:
+            # Evaluate policy
+            self.actor_critic.act(obs_batch, exploration_prob=self.exploration_prob)
+            actions_log_prob_batch = self.actor_critic.get_actions_log_prob(actions_batch)
+
+            if ppo_eth:
+                value_batch = self.actor_critic.evaluate(obs_batch)
+
+                mu_batch = self.actor_critic.action_mean
+                sigma_batch = self.actor_critic.action_std
+                entropy_batch = self.actor_critic.entropy
+
+                # KL
+                if self.desired_kl is not None and self.schedule == "adaptive":
+                    with torch.inference_mode():
+                        kl = torch.sum(
+                            torch.log(sigma_batch / old_sigma_batch + 1.0e-5)
+                            + (torch.square(old_sigma_batch) + torch.square(old_mu_batch - mu_batch))
+                            / (2.0 * torch.square(sigma_batch))
+                            - 0.5,
+                            axis=-1,
+                        )
+                        kl_mean = torch.mean(kl)
+
+                        if kl_mean > self.desired_kl * 2.0:
+                            self.learning_rate = max(1e-5, self.learning_rate / 1.5)
+                        elif kl_mean < self.desired_kl / 2.0 and kl_mean > 0.0:
+                            self.learning_rate = min(1e-2, self.learning_rate * 1.5)
+
+                        for param_group in self.optimizer.param_groups:
+                            param_group["lr"] = self.learning_rate
+
+                # Surrogate loss
+                ratio = torch.exp(actions_log_prob_batch - torch.squeeze(actions_log_prob_batch))
+                surrogate = -torch.squeeze(advantages_batch) * ratio
+                surrogate_clipped = -torch.squeeze(advantages_batch) * torch.clamp(
+                    ratio, 1.0 - self.ppo_eps, 1.0 + self.ppo_eps
+                )
+                actor_loss = torch.max(surrogate, surrogate_clipped).mean()
+
+                # Value function loss
+                if self.use_clipped_value_loss:
+                    value_clipped = target_values_batch + (value_batch - target_values_batch).clamp(
+                        -self.ppo_eps, self.ppo_eps
+                    )
+                    value_losses = (value_batch - returns_batch).pow(2)
+                    value_losses_clipped = (value_clipped - returns_batch).pow(2)
+                    value_loss = torch.max(value_losses, value_losses_clipped).mean()
+                else:
+                    value_loss = (returns_batch - value_batch).pow(2).mean()
+
+                loss = actor_loss + self.value_loss_coef * value_loss - self.entropy_coef * entropy_batch.mean()
+
+            elif ppo:
+                policy_ratio = torch.exp(actions_log_prob_batch - actions_log_prob_old_batch)
+                policy_ratio_clipped = policy_ratio.clamp(1 - self.ppo_eps, 1 + self.ppo_eps)
+                actor_loss = -torch.min(policy_ratio * advantages_batch, policy_ratio_clipped * advantages_batch).mean()
+
+                policy_kl = np.abs(policy_ratio.mean().detach().cpu().numpy()) - 1
+                if policy_kl >= self.target_kl:
+                    print("ppo early termination: policy_ratio: " + str(policy_kl))
+                    break
+
+                value_loss = advantages_batch.pow(2).mean()
+                loss = actor_loss + self.value_loss_coef * value_loss
+
+            else:
+                actor_loss = (-advantages_batch * actions_log_prob_batch).mean()
+
+                value_loss = advantages_batch.pow(2).mean()
+                loss = actor_loss + self.value_loss_coef * value_loss
 
             # Gradient step - update the parameters
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
 
-            mean_value_loss += critic_loss.item()
+            mean_value_loss += value_loss.item()
             mean_actor_loss += actor_loss.item()
-
+            
         num_updates = self.num_epochs * self.num_batches
         mean_value_loss /= num_updates
         mean_actor_loss /= num_updates
@@ -111,7 +209,7 @@ class RLAgent(nn.Module):
 
         obs, _ = self.env.reset() # first reset env
         infos = []
-        for t in range(self.storage.max_timesteps): # rollout an episode
+        for t in range(self.storage.max_timesteps): # rollout an episode ##(YAN)## increase max_timestepsase max_timesteps
             obs_tensor = torch.from_numpy(obs).to(self.device).float().unsqueeze(dim=0)
             with torch.no_grad():
                 if is_training:
@@ -134,7 +232,8 @@ class RLAgent(nn.Module):
 
         return infos
 
-    def learn(self, save_dir, num_learning_iterations=1000, num_steps_per_val=50, num_plots=10):
+    #def learn(self, save_dir, num_learning_iterations=1000, num_steps_per_val=50, num_plots=10): (Ausgangswerte)
+    def learn(self, save_dir, num_learning_iterations=2000, num_steps_per_val=50, num_plots=10): ##(YAN)## increase num_learning_iterations
         rewards_collection = []
         mean_value_loss_collection = []
         mean_actor_loss_collection = []
@@ -152,7 +251,7 @@ class RLAgent(nn.Module):
             max_prob = 1
             min_prob = 0.05
             #self.exploration_prob = -(max_prob-min_prob)*progress + max_prob
-            k = 4
+            k = 4 ## (Ausgangswert 4)
             self.exploration_prob = np.exp(-(k*progress-np.log(max_prob-min_prob)))+min_prob
             #self.exploration_prob = max_prob
             print(f"Exploration prob: {self.exploration_prob}")
@@ -196,7 +295,7 @@ class RLAgent(nn.Module):
             plt.grid(True)
             plt.ylim([-0.5, 1.5])
             plt.pause(0.1)
-
+        '''
         print(f"------- Episode {it}/{num_learning_iterations} ------------")
         #print(f"Exploration prob         : {self.exploration_prob}")
         print("Losses:")
@@ -213,7 +312,7 @@ class RLAgent(nn.Module):
                 key_values.append(info[key])
             info_mean[key] = np.mean(key_values)
 
-        plot_all_rewards = False
+        plot_all_rewards = True
         if plot_all_rewards:
             print("Rewards:")
             for key in info_mean.keys():
@@ -226,6 +325,43 @@ class RLAgent(nn.Module):
         torch.save(self.state_dict(), path)
         torch.save(self.state_dict(), 'checkpoints/model.pt')
         print("Saved model parameters to checkpoints/model.pt")
+
+    def load_model(self, path):
+        self.load_state_dict(torch.load(path))
+    '''
+        
+        keys = ['track_vel_reward',
+                'joint_pos_reward',
+                'pitchroll_rate_reward',
+                'orient_reward',
+                'pitchroll_reward',
+                'yaw_rate_reward',
+                'healthy_reward',
+                'total_reward']
+        infos_array = np.array([[info[key] for key in keys] for info in infos])
+        mean_values = np.mean(infos_array, axis=0)
+
+        keys_print = ['track_vel_reward      : ',
+                      'joint_pos_reward      : ',
+                      'pitchroll_rate_reward : ',
+                      'orient_reward         : ',
+                      'pitchroll_reward      : ',
+                      'yaw_rate_reward       : ',
+                      'healthy_reward        : ',
+                      'total_reward          : ', ]
+        
+        print(f"------- Episode {it}/{num_learning_iterations} ------------")
+        print("Losses:")
+        print(f"Critic loss              : {critic_losses[-1]}")
+        print(f"Actor loss               : {actor_losses[-1]}")
+
+        print("--------- Rewards ---------")
+        for i, key in enumerate(keys_print):
+            print(key + str(mean_values[i]))
+
+
+    def save_model(self, path):
+            torch.save(self.state_dict(), path)
 
     def load_model(self, path):
         self.load_state_dict(torch.load(path))
