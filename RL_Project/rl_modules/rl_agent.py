@@ -7,6 +7,7 @@ import torch.optim as optim
 from rl_modules.actor_critic import ActorCritic
 import matplotlib.pyplot as plt
 import numpy as np
+import time
 
 class RLAgent(nn.Module):
     def __init__(self,
@@ -19,12 +20,12 @@ class RLAgent(nn.Module):
                  num_epochs=1,
                  device='cpu',
                  action_scale=0.3,
-                 ppo_eps=0.2,
-                 target_kl=0.5,
+                 clip_param=0.2,
                  desired_kl=0.01,
                  learning_rate=1e-3,
+                 max_grad_norm=1.0,
                  use_clipped_value_loss=True,
-                 entropy_coef=0.0,
+                 entropy_coef=0.01,
                  schedule="adaptive"
                  ):
         super().__init__()
@@ -41,23 +42,19 @@ class RLAgent(nn.Module):
         self.optimizer = optim.Adam(self.actor_critic.parameters(), lr=lr)
 
         # ppo
-        self.ppo_eps = ppo_eps
-        self.target_kl = target_kl
-
-        # Epsilon-Greedy
-        self.exploration_prob = 0.9
-
+        self.clip_param = clip_param
         self.desired_kl = desired_kl
         self.learning_rate = learning_rate
         self.use_clipped_value_loss = use_clipped_value_loss
         self.entropy_coef = entropy_coef
         self.schedule = schedule
+        self.max_grad_norm = max_grad_norm
 
 
 
     def act(self, obs):
         # Compute the actions and values
-        action = self.actor_critic.act(obs, exploration_prob=self.exploration_prob).squeeze()
+        action = self.actor_critic.act(obs).squeeze()
         self.transition.action = action.detach().cpu().numpy()
         self.transition.value = self.actor_critic.evaluate(obs).squeeze().detach().cpu().numpy()
         self.transition.action_log_prob = self.actor_critic.get_actions_log_prob(action).detach().cpu().numpy()
@@ -85,74 +82,72 @@ class RLAgent(nn.Module):
         last_values = self.actor_critic.evaluate(last_obs).detach().cpu().numpy()
         return self.storage.compute_returns(last_values)
 
-    def update(self, ppo=True):
+    def update(self):
         mean_value_loss = 0
         mean_actor_loss = 0
         generator = self.storage.mini_batch_generator(self.num_batches, self.num_epochs, device=self.device) # get data from storage
 
-        for (obs_batch, actions_batch, target_values_batch, advantages_batch, actions_log_prob_old_batch, old_mu_batch,
-             old_sigma_batch, returns_batch) in generator:
+        for (obs_batch, actions_batch, target_values_batch, advantages_batch, returns_batch, actions_log_prob_batch, old_mu_batch, old_sigma_batch) in generator:
             # Evaluate policy
-            self.actor_critic.act(obs_batch, exploration_prob=self.exploration_prob)
+            self.actor_critic.act(obs_batch)
             actions_log_prob_batch = self.actor_critic.get_actions_log_prob(actions_batch)
 
-            if ppo:
-                value_batch = self.actor_critic.evaluate(obs_batch)
+            value_batch = self.actor_critic.evaluate(obs_batch)
+            
+            ### ETH
+            # value_batch = self.actor_critic.evaluate(
+            #     critic_obs_batch, masks=masks_batch, hidden_states=hid_states_batch[1]
+            # )
 
-                mu_batch = self.actor_critic.action_mean
-                sigma_batch = self.actor_critic.action_std
-                entropy_batch = self.actor_critic.entropy
+            mu_batch = self.actor_critic.action_mean
+            sigma_batch = self.actor_critic.action_std
+            entropy_batch = self.actor_critic.entropy
 
-                # KL
-                if self.desired_kl is not None and self.schedule == "adaptive":
-                    with torch.inference_mode():
-                        kl = torch.sum(
-                            torch.log(sigma_batch / old_sigma_batch + 1.0e-5)
-                            + (torch.square(old_sigma_batch) + torch.square(old_mu_batch - mu_batch))
-                            / (2.0 * torch.square(sigma_batch))
-                            - 0.5,
-                            axis=-1,
-                        )
-                        kl_mean = torch.mean(kl)
-
-                        if kl_mean > self.desired_kl * 2.0:
-                            self.learning_rate = max(1e-5, self.learning_rate / 1.5)
-                        elif kl_mean < self.desired_kl / 2.0 and kl_mean > 0.0:
-                            self.learning_rate = min(1e-2, self.learning_rate * 1.5)
-
-                        for param_group in self.optimizer.param_groups:
-                            param_group["lr"] = self.learning_rate
-
-                # Surrogate loss
-                ratio = torch.exp(actions_log_prob_batch - torch.squeeze(actions_log_prob_batch))
-                surrogate = -torch.squeeze(advantages_batch) * ratio
-                surrogate_clipped = -torch.squeeze(advantages_batch) * torch.clamp(
-                    ratio, 1.0 - self.ppo_eps, 1.0 + self.ppo_eps
-                )
-                actor_loss = torch.max(surrogate, surrogate_clipped).mean()
-
-                # Value function loss
-                if self.use_clipped_value_loss:
-                    value_clipped = target_values_batch + (value_batch - target_values_batch).clamp(
-                        -self.ppo_eps, self.ppo_eps
+            # KL
+            if self.desired_kl is not None and self.schedule == "adaptive":
+                with torch.inference_mode():
+                    kl = torch.sum(
+                        torch.log(sigma_batch / old_sigma_batch + 1.0e-5)
+                        + (torch.square(old_sigma_batch) + torch.square(old_mu_batch - mu_batch))
+                        / (2.0 * torch.square(sigma_batch))
+                        - 0.5,
+                        axis=-1,
                     )
-                    value_losses = (value_batch - returns_batch).pow(2)
-                    value_losses_clipped = (value_clipped - returns_batch).pow(2)
-                    value_loss = torch.max(value_losses, value_losses_clipped).mean()
-                else:
-                    value_loss = (returns_batch - value_batch).pow(2).mean()
+                    kl_mean = torch.mean(kl)
 
-                loss = actor_loss + self.value_loss_coef * value_loss - self.entropy_coef * entropy_batch.mean()
+                    if kl_mean > self.desired_kl * 2.0:
+                        self.learning_rate = max(1e-5, self.learning_rate / 1.5)
+                    elif kl_mean < self.desired_kl / 2.0 and kl_mean > 0.0:
+                        self.learning_rate = min(1e-2, self.learning_rate * 1.5)
 
+                    for param_group in self.optimizer.param_groups:
+                        param_group["lr"] = self.learning_rate
+
+            # Surrogate loss
+            ratio = torch.exp(actions_log_prob_batch - torch.squeeze(actions_log_prob_batch))
+            surrogate = -torch.squeeze(advantages_batch) * ratio
+            surrogate_clipped = -torch.squeeze(advantages_batch) * torch.clamp(
+                ratio, 1.0 - self.clip_param, 1.0 + self.clip_param
+            )
+            actor_loss = torch.max(surrogate, surrogate_clipped).mean()
+
+            # Value function loss
+            if self.use_clipped_value_loss:
+                value_clipped = target_values_batch + (value_batch - target_values_batch).clamp(
+                    -self.clip_param, self.clip_param
+                )
+                value_losses = (value_batch - returns_batch).pow(2)
+                value_losses_clipped = (value_clipped - returns_batch).pow(2)
+                value_loss = torch.max(value_losses, value_losses_clipped).mean()
             else:
-                actor_loss = (-advantages_batch * actions_log_prob_batch).mean()
+                value_loss = (returns_batch - value_batch).pow(2).mean()
 
-                value_loss = advantages_batch.pow(2).mean()
-                loss = actor_loss + self.value_loss_coef * value_loss
+            loss = actor_loss + self.value_loss_coef * value_loss - self.entropy_coef * entropy_batch.mean()
 
             # Gradient step - update the parameters
             self.optimizer.zero_grad()
             loss.backward()
+            nn.utils.clip_grad_norm_(self.actor_critic.parameters(), self.max_grad_norm)
             self.optimizer.step()
 
             mean_value_loss += value_loss.item()
@@ -197,34 +192,39 @@ class RLAgent(nn.Module):
         rewards_collection = []
         mean_value_loss_collection = []
         mean_actor_loss_collection = []
-        value_loss_init = 0
-        actor_loss_init = 0
-        reward_init = 0
 
         plt.ion()
         plt.show(block=False)
         
         for it in range(1, num_learning_iterations + 1):
-
-            progress = it/(num_learning_iterations+1)
-            min_prob, max_prob = 0.05, 1
-            self.exploration_prob = np.exp(-(4*progress-np.log(max_prob-min_prob)))+min_prob
-            print(f"Exploration prob: {self.exploration_prob}")
-
             # play games to collect data
+            start_time = time.time()
             infos = self.play(is_training=True) # play
+            print("Learning Iteration: " + str(it) + "/" + str(num_learning_iterations) + " (" + f"{time.time()-start_time:.2f}" + "s)" )
             # improve policy with collected data
             mean_value_loss, mean_actor_loss = self.update() # update
-
 
             rewards_collection.append(np.mean(self.storage.rewards))
             mean_value_loss_collection.append(mean_value_loss)
             mean_actor_loss_collection.append(mean_actor_loss)
 
-            self.plot_results(save_dir, infos, rewards_collection, mean_actor_loss_collection, mean_value_loss_collection, it, num_learning_iterations)
+            infos = self.play(is_training=False)
+
+            info_mean = infos[0]
+            for key in info_mean.keys():
+                key_values = []
+                for info in infos:
+                    key_values.append(info[key])
+                info_mean[key] = np.mean(key_values)
+            
+            print("------ Rewards ------ ")
+            max_length = max(len(key) for key in info_mean.keys())
+            for key in info_mean.keys():
+                print(key.ljust(max_length) + "\t : " + str(info_mean[key]))
+            print("--------------------- ")
 
             if it % num_steps_per_val == 0:
-                infos = self.play(is_training=False)
+                self.plot_results(save_dir, infos, rewards_collection, mean_actor_loss_collection, mean_value_loss_collection, it, num_learning_iterations)
                 self.save_model(os.path.join(save_dir, f'{it}.pt'))
 
     @staticmethod
@@ -232,8 +232,8 @@ class RLAgent(nn.Module):
 
         plt.clf()
         plt.plot(np.array(actor_losses), label='actor')
-        plt.plot(np.array(critic_losses) / 500, label='critic')
-        plt.plot(np.array(rewards), label='reward (x100)')
+        plt.plot(np.array(critic_losses) / 50, label='critic')
+        plt.plot(np.array(rewards), label='reward')
         plt.title("Actor/Critic Loss (" + str(it) + "/" + str(num_learning_iterations) + ")")
         plt.ylabel("Loss")
         plt.xlabel("Episodes")
@@ -241,20 +241,6 @@ class RLAgent(nn.Module):
         plt.legend()
         plt.draw()
         plt.pause(0.1)
-
-        info_mean = infos[0]
-        for key in info_mean.keys():
-            key_values = []
-            for info in infos:
-                key_values.append(info[key])
-            info_mean[key] = np.mean(key_values)
-        
-
-        print("------ Rewards ------ ")
-        max_length = max(len(key) for key in info_mean.keys())
-        for key in info_mean.keys():
-            print(key.ljust(max_length) + "\t : " + str(info_mean[key]))
-
 
 
     def save_model(self, path):

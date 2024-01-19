@@ -18,12 +18,11 @@ class Storage:
         def clear(self):
             self.__init__()
 
-    def __init__(self,
-                 obs_dim,
+    def __init__(self,                  obs_dim,
                  action_dim,
                  max_timesteps,
-                 gamma=0.995,
-                 lmbda=0.96):
+                 gamma=0.998,
+                 lmbda=0.95):
         self.max_timesteps = max_timesteps
         self.gamma = gamma
         self.lmbda = lmbda
@@ -63,27 +62,20 @@ class Storage:
         self.step = 0
 
     def compute_returns(self, last_values, gae=True):
+        advantage = 0
         for step in reversed(range(self.max_timesteps)):
-            self.advantages[step] = 0 
-            if gae:
-                diff = self.max_timesteps - step
-                for l in range(diff):
-                    if step + l == self.max_timesteps - 1:
-                        next_values = last_values
-                    else:
-                        next_values = self.values[step + l + 1]
-                    next_is_not_terminate = 1.0 - self.dones[step + l]
-                    delta = self.rewards[step + l] + next_is_not_terminate * self.gamma * next_values - self.values[step + l] # calculate advantage estimation
-                    self.advantages[step] += ((self.gamma * self.lmbda)**l) * delta
+            if step == self.max_timesteps - 1:
+                next_values = last_values
             else:
-                if step == self.max_timesteps - 1:
-                    next_values = last_values
-                else:
-                    next_values = self.values[step + 1]
-                next_is_not_terminate = 1.0 - self.dones[step]
-                delta = self.rewards[step] + next_is_not_terminate * self.gamma * next_values - self.values[step]
-                self.advantages[step] = delta
-            self.returns[step] = self.advantages[step] + self.values[step]
+                next_values = self.values[step + 1]
+            next_is_not_terminate = 1.0 - self.dones[step]
+            delta = self.rewards[step] + next_is_not_terminate * self.gamma * next_values - self.values[step]
+            advantage = delta + next_is_not_terminate * self.gamma * self.lmbda * advantage
+            self.returns[step] = advantage + self.values[step]
+
+        # Compute and normalize the advantages
+        self.advantages = self.returns - self.values
+        self.advantages = (self.advantages - self.advantages.mean()) / (self.advantages.std() + 1e-8)
 
 
     def mini_batch_generator(self, num_batches, num_epochs=2, device="cpu"):
@@ -93,8 +85,8 @@ class Storage:
         obs = torch.from_numpy(self.obs).to(device).float()
         actions = torch.from_numpy(self.actions).to(device).float()
         values = torch.from_numpy(self.values).to(device).float()
-        advantages = torch.from_numpy(self.advantages).to(device).float()
         actions_log_prob = torch.from_numpy(self.actions_log_prob).to(device).float()
+        advantages = torch.from_numpy(self.advantages).to(device).float()
 
         old_mu = torch.from_numpy(self.mu).to(device).float()
         old_sigma = torch.from_numpy(self.sigma).to(device).float()
@@ -109,13 +101,12 @@ class Storage:
                 obs_batch = obs[batch_idx]
                 actions_batch = actions[batch_idx]
                 target_values_batch = values[batch_idx]
+                returns_batch = returns[batch_idx]
+                actions_log_prob_batch = actions_log_prob[batch_idx]
                 advantages_batch = advantages[batch_idx]
-                actions_log_prob_old_batch = actions_log_prob[batch_idx]
 
                 old_mu_batch = old_mu[batch_idx]
                 old_sigma_batch = old_sigma[batch_idx]
-                returns_batch = returns[batch_idx]
 
-                yield (obs_batch, actions_batch, target_values_batch, advantages_batch, actions_log_prob_old_batch,
-                       old_mu_batch, old_sigma_batch, returns_batch)
+                yield (obs_batch, actions_batch, target_values_batch, advantages_batch, returns_batch, actions_log_prob_batch, old_mu_batch, old_sigma_batch)
 
