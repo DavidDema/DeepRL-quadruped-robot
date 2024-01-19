@@ -5,10 +5,7 @@ from rl_modules.actor_critic import ActorCritic
 import torch
 
 def test():
-    if torch.cuda.is_available():
-        device ='cuda'
-    else:
-        device = 'cpu'
+    device = 'cpu'
     # create environment
     go_env = GOEnv(render_mode="human")
     # create actor critic

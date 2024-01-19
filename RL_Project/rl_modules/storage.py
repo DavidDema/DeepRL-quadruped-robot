@@ -11,6 +11,9 @@ class Storage:
             self.done = None
             self.value = None
             self.action_log_prob = None
+            self.action_mean = None
+            self.action_sigma = None
+            self.hidden_states = None
 
         def clear(self):
             self.__init__()
@@ -36,6 +39,9 @@ class Storage:
         self.returns = np.zeros([self.max_timesteps])
         self.advantages = np.zeros([self.max_timesteps])
 
+        self.mu = np.zeros([self.max_timesteps, action_dim])
+        self.sigma = np.zeros([self.max_timesteps, action_dim])
+
         self.step = 0
 
     def store_transition(self, transition: Transition):
@@ -47,6 +53,9 @@ class Storage:
 
         self.actions_log_prob[self.step] = transition.action_log_prob.copy()
         self.values[self.step] = transition.value.copy()
+
+        self.mu[self.step] = transition.action_mean.copy()
+        self.sigma[self.step] = transition.action_sigma.copy()
 
         self.step += 1
 
@@ -77,7 +86,7 @@ class Storage:
             self.returns[step] = self.advantages[step] + self.values[step]
 
 
-    def mini_batch_generator(self, num_batches, num_epochs=8, device="cpu"):
+    def mini_batch_generator(self, num_batches, num_epochs=2, device="cpu"):
         batch_size = self.max_timesteps // num_batches
         indices = np.random.permutation(num_batches * batch_size)
 
@@ -86,6 +95,10 @@ class Storage:
         values = torch.from_numpy(self.values).to(device).float()
         advantages = torch.from_numpy(self.advantages).to(device).float()
         actions_log_prob = torch.from_numpy(self.actions_log_prob).to(device).float()
+
+        old_mu = torch.from_numpy(self.mu).to(device).float()
+        old_sigma = torch.from_numpy(self.sigma).to(device).float()
+        returns = torch.from_numpy(self.returns).to(device).float()
 
         for epoch in range(num_epochs):
             for i in range(num_batches):
@@ -98,4 +111,11 @@ class Storage:
                 target_values_batch = values[batch_idx]
                 advantages_batch = advantages[batch_idx]
                 actions_log_prob_old_batch = actions_log_prob[batch_idx]
-                yield (obs_batch, actions_batch, target_values_batch, advantages_batch, actions_log_prob_old_batch)
+
+                old_mu_batch = old_mu[batch_idx]
+                old_sigma_batch = old_sigma[batch_idx]
+                returns_batch = returns[batch_idx]
+
+                yield (obs_batch, actions_batch, target_values_batch, advantages_batch, actions_log_prob_old_batch,
+                       old_mu_batch, old_sigma_batch, returns_batch)
+
