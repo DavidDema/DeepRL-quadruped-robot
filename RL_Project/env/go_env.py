@@ -41,12 +41,12 @@ class GOEnv(MujocoEnv):
             action_scale = 0.5
 
         def __init__(self):
-            self.base_height_target = 0.6
+            self.base_height_target = 0.34
             self.reward_scale = self.RewardScale()
             self.control = self.Control()
             self.commands = [0.5, 0.0, 0.0] # x, y, yaw
             self.tracking_sigma = 0.25
-            self.only_positive_rewards = True
+            self.only_positive_rewards = False
 
     def __init__(self,
                  healthy_z_range=(0.15, 0.5),
@@ -108,16 +108,16 @@ class GOEnv(MujocoEnv):
 
     @property
     def lower_limits(self):
-        return np.array([-0.863, -0.686, -2.818]*4)
+        return np.array([-0.1, 0.2, -1.6]*4)
 
     @property
     def upper_limits(self):
-        return np.array([0.863, 4.501, -0.888]*4)
+        return np.array([0.1, 0.7, -1.9]*4)
 
     @property
     def init_joints(self):
         # base position (x, y, z), base orientation (quaternion), 4x leg position (3 joints) 
-        return np.array([0, 0, 0.5, 1, 0, 0, 0] + [0, 0, 0]*4)
+        return np.array([0, 0, 0.34, 1, 0, 0, 0] + [0, 0.6, -1.8]*4)
 
     @property
     def base_rotation(self):
@@ -159,41 +159,41 @@ class GOEnv(MujocoEnv):
         return np.concatenate([qpos, qvel])
 
     # ------------ reward functions----------------
-    def _reward_lin_vel_z(self): # lin_vel_z = -2.0
+    def _reward_lin_vel_z(self):
         # Penalize z axis base linear velocity
         return np.square(self.base_lin_vel[2])
 
-    def _reward_ang_vel_xy(self): # ang_vel_xy = -0.05
+    def _reward_ang_vel_xy(self):
         # Penalize non flat base orientation
         return np.sum(np.square(self.base_ang_vel[2]))
     
-    def _reward_torques(self): # torques = -0.00001
+    def _reward_torques(self):
         # Penalize torques
         return np.sum(np.square(self.torques))
     
-    def _reward_dof_acc(self): # dof_acc = -2.5e-7
+    def _reward_dof_acc(self):
         # Penalize dof accelerations
         return np.sum(np.square((self.last_dof_vel - self.dof_vel) / self.dt))
     
-    def _reward_action_rate(self): # action_rate = -0.01
+    def _reward_action_rate(self):
         # Penalize changes in actions
         return np.sum(np.square(self.last_action - self.action))
     
-    def _reward_collision(self): # collision = -1.
+    def _reward_collision(self):
         # Penalize collisions on selected bodies
         return 0.0
 
-    def _reward_tracking_lin_vel(self): # tracking_lin_vel = 1.0
+    def _reward_tracking_lin_vel(self):
         # Tracking of linear velocity commands (xy axes)
         lin_vel_error = np.sum(np.square(self.cfg.commands[:2] - self.base_lin_vel[:2]))
         return np.exp(-lin_vel_error/self.cfg.tracking_sigma)
     
-    def _reward_tracking_ang_vel(self): # tracking_ang_vel = 0.5
+    def _reward_tracking_ang_vel(self):
         # Tracking of angular velocity commands (yaw) 
         ang_vel_error = np.square(self.cfg.commands[2] - self.base_ang_vel[2])
         return np.exp(-ang_vel_error/self.cfg.tracking_sigma)
 
-    def _reward_feet_air_time(self): # feet_air_time =  1.0
+    def _reward_feet_air_time(self):
         # Reward long steps
         return 0.0
     
@@ -277,48 +277,49 @@ class GOEnv(MujocoEnv):
         # feet_contact = self.data.contact.geom2
         terminate = self.terminated
 
-        reward_lin_vel_z = self._reward_lin_vel_z()
-        reward_ang_vel_xy = self._reward_ang_vel_xy()
-        reward_orientation = self._reward_orientation()
-        reward_base_height = self._reward_base_height()
-        reward_torques = self._reward_torques()
-        reward_dof_vel = self._reward_dof_vel()
-        reward_dof_acc = self._reward_dof_acc()
-        reward_action_rate = self._reward_action_rate()
-        reward_collision = self._reward_collision()
-        reward_termination = self._reward_termination()
-        reward_dof_pos_limits = self._reward_dof_pos_limits()
-        reward_dof_vel_limits = self._reward_dof_vel_limits()
-        reward_torque_limits = self._reward_torque_limits()
-        reward_tracking_lin_vel = self._reward_tracking_lin_vel()
-        reward_tracking_ang_vel = self._reward_tracking_ang_vel()
-        reward_feet_air_time = self._reward_feet_air_time()
-        reward_stumble = self._reward_stumble()
-        reward_stand_still = self._reward_stand_still()
-        reward_feet_contact_forces = self._reward_feet_contact_forces()
+        reward_lin_vel_z = self._reward_lin_vel_z() * self.cfg.reward_scale.lin_vel_z
+        reward_ang_vel_xy = self._reward_ang_vel_xy() * self.cfg.reward_scale.ang_vel_xy
+        reward_orientation = self._reward_orientation() * self.cfg.reward_scale.orientation
+        reward_base_height = self._reward_base_height() * self.cfg.reward_scale.base_height
+        reward_torques = self._reward_torques() * self.cfg.reward_scale.torques
+        reward_dof_vel = self._reward_dof_vel() * self.cfg.reward_scale.dof_vel
+        reward_dof_acc = self._reward_dof_acc() * self.cfg.reward_scale.dof_acc
+        reward_action_rate = self._reward_action_rate() * self.cfg.reward_scale.action_rate      
+        reward_collision = self._reward_collision() * self.cfg.reward_scale.collision        
+        reward_termination = self._reward_termination() * self.cfg.reward_scale.termination      
+        reward_dof_pos_limits = self._reward_dof_pos_limits() # * self.cfg.reward_scale.               
+        reward_dof_vel_limits = self._reward_dof_vel_limits() # * self.cfg.reward_scale.                
+        reward_torque_limits = self._reward_torque_limits() # * self.cfg.reward_scale.               
+        reward_tracking_lin_vel = self._reward_tracking_lin_vel() * self.cfg.reward_scale.tracking_lin_vel 
+        reward_tracking_ang_vel = self._reward_tracking_ang_vel() * self.cfg.reward_scale.tracking_ang_vel 
+        reward_feet_air_time = self._reward_feet_air_time() * self.cfg.reward_scale.feet_air_time    
+        reward_stumble = self._reward_stumble() * self.cfg.reward_scale.feet_stumble     
+        reward_stand_still = self._reward_stand_still() * self.cfg.reward_scale.stand_still          
+        reward_feet_contact_forces = self._reward_feet_contact_forces() # * self.cfg.reward_scale.               
 
         # self.data.contact.geom2
+        # self.data.geom_xpos 
 
         rewards = [
-            self.cfg.reward_scale.lin_vel_z * reward_lin_vel_z,
-            self.cfg.reward_scale.ang_vel_xy * reward_ang_vel_xy,
-            self.cfg.reward_scale.orientation * reward_orientation,
-            self.cfg.reward_scale.base_height * reward_base_height,
-            self.cfg.reward_scale.torques * reward_torques,
-            self.cfg.reward_scale.dof_vel * reward_dof_vel,
-            self.cfg.reward_scale.dof_acc * reward_dof_acc,
-            self.cfg.reward_scale.action_rate * reward_action_rate,
-            self.cfg.reward_scale.collision * reward_collision,
-            self.cfg.reward_scale.termination * reward_termination,
-            # self.cfg.reward_scale. * reward_dof_pos_limits,
-            # self.cfg.reward_scale. * reward_dof_vel_limits,
-            # self.cfg.reward_scale. * reward_torque_limits,
-            self.cfg.reward_scale.tracking_lin_vel * reward_tracking_lin_vel,
-            self.cfg.reward_scale.tracking_ang_vel * reward_tracking_ang_vel,
-            self.cfg.reward_scale.feet_air_time * reward_feet_air_time,
-            self.cfg.reward_scale.feet_stumble * reward_stumble,
-            self.cfg.reward_scale.stand_still * reward_stand_still,
-            # self.cfg.reward_scale. * reward_feet_contact_forces
+            reward_lin_vel_z,
+            reward_ang_vel_xy,
+            reward_orientation,
+            reward_base_height,
+            reward_torques,
+            reward_dof_vel,
+            reward_dof_acc,
+            reward_action_rate,
+            reward_collision,
+            reward_termination,
+            reward_dof_pos_limits,
+            reward_dof_vel_limits,
+            reward_torque_limits,
+            reward_tracking_lin_vel,
+            reward_tracking_ang_vel,
+            reward_feet_air_time,
+            reward_stumble,
+            reward_stand_still,
+            reward_feet_contact_forces
         ]
 
         if self.cfg.only_positive_rewards:
