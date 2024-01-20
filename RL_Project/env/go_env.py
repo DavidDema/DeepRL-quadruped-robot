@@ -46,6 +46,7 @@ class GOEnv(MujocoEnv):
             self.control = self.Control()
             self.commands = [0.5, 0.0, 0.0] # x, y, yaw
             self.tracking_sigma = 0.25
+            self.only_positive_rewards = True
 
     def __init__(self,
                  healthy_z_range=(0.15, 0.5),
@@ -166,7 +167,6 @@ class GOEnv(MujocoEnv):
         # Penalize non flat base orientation
         return np.sum(np.square(self.base_ang_vel[2]))
     
-
     def _reward_torques(self): # torques = -0.00001
         # Penalize torques
         return np.sum(np.square(self.torques))
@@ -253,9 +253,10 @@ class GOEnv(MujocoEnv):
         self.last_action = self.action
         self.action = delta_q + self.data.qpos[-12:]
         self.action = np.clip(self.action, a_min=self.lower_limits, a_max=self.upper_limits)
-        
+        self.torques = self._compute_torques(self.action)
+
         # compute torque
-        self.do_simulation(self.action, self.frame_skip)
+        self.do_simulation(self.torques, self.frame_skip)
 
         self.last_base_pos = self.base_pos
         self.last_base_vel = self.base_lin_vel
@@ -296,7 +297,7 @@ class GOEnv(MujocoEnv):
         reward_stand_still = self._reward_stand_still()
         reward_feet_contact_forces = self._reward_feet_contact_forces()
 
-        reward_total = np.sum([
+        rewards = [
             self.cfg.reward_scale.lin_vel_z * reward_lin_vel_z,
             self.cfg.reward_scale.ang_vel_xy * reward_ang_vel_xy,
             self.cfg.reward_scale.orientation * reward_orientation,
@@ -316,7 +317,11 @@ class GOEnv(MujocoEnv):
             self.cfg.reward_scale.feet_stumble * reward_stumble,
             self.cfg.reward_scale.stand_still * reward_stand_still,
             # self.cfg.reward_scale. * reward_feet_contact_forces
-        ])
+        ]
+
+        if self.cfg.only_positive_rewards:
+            rewards = np.clip(rewards, a_min=0.0, a_max=None)
+        rewards_total = np.sum(rewards)
 
         observation = self._get_obs()
 
@@ -336,13 +341,13 @@ class GOEnv(MujocoEnv):
             'reward_feet_air_time': reward_feet_air_time,
             'reward_stumble': reward_stumble,
             'reward_stand_still': reward_stand_still,
-            'reward_total': reward_total,
+            'rewards_total': rewards_total,
             'traverse': self.data.qpos[0]
         }
 
         if self.render_mode == "human":
             self.render()
-        return observation, reward_total, terminate, info
+        return observation, rewards_total, terminate, info
 
     def reset_model(self):
         noise_low = -self._reset_noise_scale

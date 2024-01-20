@@ -66,20 +66,15 @@ class MLP(nn.Module):
                  n_layers=2,
                  act=nn.ELU(),
                  output_act=None,
-                 lstm=False,
                  **kwargs):
         super().__init__()
         n_hidden = n_layers - 2
-        input_layer = Dense(dim_in=dim_in, dim_out=dim_hidden, activation=act, **kwargs)
+        input_layer = Dense(dim_in=dim_in, dim_out=dim_hidden[0], activation=act, **kwargs)
         layers = [input_layer]
-        if lstm:
-            hidden_layer = LSTM(dim_hidden, dim_hidden, n_layers, dim_hidden)
-            layers.append(hidden_layer)
-        else:
-            for i in range(n_hidden):
-                layers.append(Dense(dim_in=dim_hidden, dim_out=dim_hidden, activation=act, **kwargs))
+        for i in range(n_hidden - 1):
+            layers.append(Dense(dim_in=dim_hidden[i], dim_out=dim_hidden[i+1], activation=act, **kwargs))
         
-        output_layer = Dense(dim_in=dim_hidden, dim_out=dim_out, activation=output_act, **kwargs)
+        output_layer = Dense(dim_in=dim_hidden[-1], dim_out=dim_out, activation=output_act, **kwargs)
         layers.append(output_layer)
 
         self.model = nn.Sequential(*layers)

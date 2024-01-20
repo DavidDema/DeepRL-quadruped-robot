@@ -21,7 +21,7 @@ class Storage:
     def __init__(self,                  obs_dim,
                  action_dim,
                  max_timesteps,
-                 gamma=0.998,
+                 gamma=0.99,
                  lmbda=0.95):
         self.max_timesteps = max_timesteps
         self.gamma = gamma

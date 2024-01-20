@@ -8,7 +8,7 @@ class ActorCritic(nn.Module):
     def __init__(self,
                  state_dim,
                  action_dim,
-                 hidden_dim=256,
+                 hidden_dim=[512, 256, 128],
                  n_layers=5,
                  init_std=1.0
                  ):
