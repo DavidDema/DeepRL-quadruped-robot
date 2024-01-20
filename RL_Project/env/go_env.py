@@ -178,10 +178,6 @@ class GOEnv(MujocoEnv):
     def _reward_action_rate(self):
         # Penalize changes in actions
         return np.sum(np.square(self.last_action - self.action))
-    
-    def _reward_collision(self):
-        # Penalize collisions on selected bodies
-        return 0.0
 
     def _reward_tracking_lin_vel(self):
         # Tracking of linear velocity commands (xy axes)
@@ -192,6 +188,10 @@ class GOEnv(MujocoEnv):
         # Tracking of angular velocity commands (yaw) 
         ang_vel_error = np.square(self.cfg.commands[2] - self.base_ang_vel[2])
         return np.exp(-ang_vel_error/self.cfg.tracking_sigma)
+    
+    def _reward_collision(self):
+        # Penalize collisions on selected bodies
+        return 0.0
 
     def _reward_feet_air_time(self):
         # Reward long steps
@@ -299,6 +299,7 @@ class GOEnv(MujocoEnv):
 
         # self.data.contact.geom2
         # self.data.geom_xpos 
+        self.data.cfrc_ext
 
         rewards = [
             reward_lin_vel_z,
