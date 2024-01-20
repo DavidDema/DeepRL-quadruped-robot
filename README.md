@@ -15,6 +15,7 @@
     * https://github.com/leggedrobotics/rsl_rl/blob/master/rsl_rl/runners/on_policy_runner.py
     * https://github.com/leggedrobotics/rsl_rl/blob/master/rsl_rl/storage/rollout_storage.py
     * https://github.com/leggedrobotics/legged_gym/blob/master/legged_gym/envs/base/legged_robot.py
+    * https://arxiv.org/pdf/2109.11978.pdf
 
 ## TODO:
 - check implementations

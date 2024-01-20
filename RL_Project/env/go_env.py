@@ -17,26 +17,27 @@ class GOEnv(MujocoEnv):
 
     class Cfg:
         class RewardScale:
-            termination = -0.0
             tracking_lin_vel = 1.0
             tracking_ang_vel = 0.5
             lin_vel_z = -2.0
             ang_vel_xy = -0.05
-            orientation = -0.
             torques = -0.00001
-            dof_vel = -0.
             dof_acc = -2.5e-7
-            base_height = -0. 
             feet_air_time =  1.0
             collision = -1.
-            feet_stumble = -0.0 
             action_rate = -0.01
-            stand_still = -0.0
+            # --- apparently not used --- #
+            termination = 0.0
+            orientation = 0.0
+            dof_vel = 0.0
+            base_height = 0.0
+            feet_stumble = 0.0
+            stand_still = 0.0
 
         class Control:
             control_type = 'P'
-            stiffness = 10.0
-            damping = 1.0
+            stiffness = 10.0 # 15 
+            damping = 1.0 # 1.5
             action_scale = 0.5
 
         def __init__(self):
@@ -100,8 +101,8 @@ class GOEnv(MujocoEnv):
         self.last_dof_pos = self.init_joints[-12:]
         self.last_dof_vel = np.zeros(12)
 
-        self.p_gain = torch.zeros(self.action_dim, dtype=torch.float, requires_grad=False) * self.cfg.control.stiffness
-        self.d_gain = torch.zeros(self.action_dim, dtype=torch.float, requires_grad=False) * self.cfg.control.damping
+        self.p_gain = np.zeros(self.action_dim) * self.cfg.control.stiffness
+        self.d_gain = np.zeros(self.action_dim) * self.cfg.control.damping
 
 
     @property
@@ -157,14 +158,47 @@ class GOEnv(MujocoEnv):
         return np.concatenate([qpos, qvel])
 
     # ------------ reward functions----------------
-    def _reward_lin_vel_z(self):
+    def _reward_lin_vel_z(self): # lin_vel_z = -2.0
         # Penalize z axis base linear velocity
         return np.square(self.base_lin_vel[2])
 
-    def _reward_ang_vel_xy(self):
+    def _reward_ang_vel_xy(self): # ang_vel_xy = -0.05
         # Penalize non flat base orientation
         return np.sum(np.square(self.base_ang_vel[2]))
     
+
+    def _reward_torques(self): # torques = -0.00001
+        # Penalize torques
+        return np.sum(np.square(self.torques))
+    
+    def _reward_dof_acc(self): # dof_acc = -2.5e-7
+        # Penalize dof accelerations
+        return np.sum(np.square((self.last_dof_vel - self.dof_vel) / self.dt))
+    
+    def _reward_action_rate(self): # action_rate = -0.01
+        # Penalize changes in actions
+        return np.sum(np.square(self.last_action - self.action))
+    
+    def _reward_collision(self): # collision = -1.
+        # Penalize collisions on selected bodies
+        return 0.0
+
+    def _reward_tracking_lin_vel(self): # tracking_lin_vel = 1.0
+        # Tracking of linear velocity commands (xy axes)
+        lin_vel_error = np.sum(np.square(self.cfg.commands[:2] - self.base_lin_vel[:2]))
+        return np.exp(-lin_vel_error/self.cfg.tracking_sigma)
+    
+    def _reward_tracking_ang_vel(self): # tracking_ang_vel = 0.5
+        # Tracking of angular velocity commands (yaw) 
+        ang_vel_error = np.square(self.cfg.commands[2] - self.base_ang_vel[2])
+        return np.exp(-ang_vel_error/self.cfg.tracking_sigma)
+
+    def _reward_feet_air_time(self): # feet_air_time =  1.0
+        # Reward long steps
+        return 0.0
+    
+    # --- BEGIN: apparently not used reward functions --- # 
+
     def _reward_orientation(self):
         # Penalize non flat base orientation
         return np.sum(np.square(self.base_orientation[:2]))
@@ -172,27 +206,10 @@ class GOEnv(MujocoEnv):
     def _reward_base_height(self):
         # Penalize base height away from target
         return np.square(self.base_pos[2] - self.cfg.base_height_target)
-
-    def _reward_torques(self):
-        # Penalize torques
-        return 0.0
-        # return np.sum(np.square(self.torques, axis=1))
     
     def _reward_dof_vel(self):
         # Penalize dof velocities
         return np.sum(np.square(self.dof_vel))
-    
-    def _reward_dof_acc(self):
-        # Penalize dof accelerations
-        return np.sum(np.square((self.last_dof_vel - self.dof_vel) / self.dt))
-    
-    def _reward_action_rate(self):
-        # Penalize changes in actions
-        return np.sum(np.square(self.last_action - self.action))
-    
-    def _reward_collision(self):
-        # Penalize collisions on selected bodies
-        return 0.0
     
     def _reward_termination(self):
         # Terminal reward / penalty
@@ -209,20 +226,6 @@ class GOEnv(MujocoEnv):
     def _reward_torque_limits(self):
         # penalize torques too close to the limit
         return 0.0
-
-    def _reward_tracking_lin_vel(self):
-        # Tracking of linear velocity commands (xy axes)
-        lin_vel_error = np.sum(np.square(self.cfg.commands[:2] - self.base_lin_vel[:2]))
-        return np.exp(-lin_vel_error/self.cfg.tracking_sigma)
-    
-    def _reward_tracking_ang_vel(self):
-        # Tracking of angular velocity commands (yaw) 
-        ang_vel_error = np.square(self.cfg.commands[2] - self.base_ang_vel[2])
-        return np.exp(-ang_vel_error/self.cfg.tracking_sigma)
-
-    def _reward_feet_air_time(self):
-        # Reward long steps
-        return 0.0
     
     def _reward_stumble(self):
         # Penalize feet hitting vertical surfaces
@@ -235,6 +238,8 @@ class GOEnv(MujocoEnv):
     def _reward_feet_contact_forces(self):
         # penalize high contact forces
         return 0.0
+    
+    # --- END: apparently not used reward functions --- # 
 
     def step(self, delta_q):
         
