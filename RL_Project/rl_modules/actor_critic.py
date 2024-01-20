@@ -2,14 +2,14 @@ import torch
 import torch.nn as nn
 from networks.networks import MLP
 from torch.distributions import Normal
-import numpy as np
+
 
 class ActorCritic(nn.Module):
     def __init__(self,
                  state_dim,
                  action_dim,
-                 hidden_dim=[512, 256, 128],
-                 n_layers=5,
+                 hidden_dim=512,
+                 n_layers=3,
                  init_std=1.0
                  ):
         super().__init__()
