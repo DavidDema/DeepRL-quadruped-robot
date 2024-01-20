@@ -168,6 +168,7 @@ class GOEnv(MujocoEnv):
 
     def _reward_ang_vel_xy(self):
         # Penalize non flat base orientation
+        print(self.base_ang_vel[2])
         return np.sum(np.square(self.base_ang_vel[2]))
     
     def _reward_torques(self):
@@ -270,20 +271,18 @@ class GOEnv(MujocoEnv):
         
         self.base_pos = self.data.qpos[:3].copy()
         self.base_lin_vel = self.data.qvel[:3].copy()
-        self.base_ang_vel = (self.last_base_orientation - self.base_orientation) / self.dt 
         self.feet_pos = self.data.geom_xpos.copy()
         self.base_orientation = self.base_rotation
+        self.base_ang_vel = (self.last_base_orientation - self.base_orientation) / self.dt 
         self.dof_pos = self.data.qpos[7:]
         self.dof_vel = (self.last_dof_pos - self.dof_pos) / self.dt
         self.torques = self._compute_torques(self.action)
         self.contact_forces = self.data.cfrc_ext
 
-        # print("self.data.contact.geom2")
         # print(self.data.contact.geom2)
-        # print("self.data.geom_xpos")
         # print(self.data.geom_xpos) 
-
         # feet_contact = self.data.contact.geom2
+
         terminate = self.terminated
 
         reward_lin_vel_z = self._reward_lin_vel_z() * self.cfg.reward_scale.lin_vel_z
