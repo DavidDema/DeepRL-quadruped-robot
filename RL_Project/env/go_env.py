@@ -94,6 +94,7 @@ class GOEnv(MujocoEnv):
         self.base_orientation = np.zeros(3)
         self.dof_pos = self.init_joints[-12:]
         self.dof_vel = np.zeros(12)
+        self.dof_acc = np.zeros(12)
         self.action = np.zeros(12)
         self.torques = np.zeros(12)
         self.last_base_pos = self.init_joints[:3]
@@ -168,7 +169,6 @@ class GOEnv(MujocoEnv):
 
     def _reward_ang_vel_xy(self):
         # Penalize non flat base orientation
-        print(self.base_ang_vel[2])
         return np.sum(np.square(self.base_ang_vel[2]))
     
     def _reward_torques(self):
@@ -177,7 +177,7 @@ class GOEnv(MujocoEnv):
     
     def _reward_dof_acc(self):
         # Penalize dof accelerations
-        return np.sum(np.square((self.last_dof_vel - self.dof_vel) / self.dt))
+        return np.sum(np.square((self.dof_acc) / self.dt))
     
     def _reward_action_rate(self):
         # Penalize changes in actions
@@ -251,15 +251,15 @@ class GOEnv(MujocoEnv):
         self.base_lin_vel = self.data.qvel[:3].copy()
         self.feet_pos = self.data.geom_xpos.copy()
         self.base_orientation = self.base_rotation
-        self.dof_pos = self.data.qpos[7:]
-        self.dof_vel = (self.last_dof_pos - self.dof_pos) / self.dt
+        self.dof_pos = self.data.qpos[-12:]
+        self.dof_vel = self.data.qvel[-12:]
 
         self.last_action = self.action
         self.action = delta_q + self.data.qpos[-12:]
         self.action = np.clip(self.action, a_min=self.lower_limits, a_max=self.upper_limits)
         self.torques = self._compute_torques(self.action)
 
-        # compute torque
+        # simulate
         self.do_simulation(self.torques, self.frame_skip)
 
         self.last_base_pos = self.base_pos
@@ -273,9 +273,10 @@ class GOEnv(MujocoEnv):
         self.base_lin_vel = self.data.qvel[:3].copy()
         self.feet_pos = self.data.geom_xpos.copy()
         self.base_orientation = self.base_rotation
+        self.dof_pos = self.data.qpos[-12:]
+        self.dof_vel = self.data.qvel[-12:] 
+        self.dof_acc = self.last_dof_vel - self.dof_vel 
         self.base_ang_vel = (self.last_base_orientation - self.base_orientation) / self.dt 
-        self.dof_pos = self.data.qpos[7:]
-        self.dof_vel = (self.last_dof_pos - self.dof_pos) / self.dt
         self.torques = self._compute_torques(self.action)
         self.contact_forces = self.data.cfrc_ext
 
