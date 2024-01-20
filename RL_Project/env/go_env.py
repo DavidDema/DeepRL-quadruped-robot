@@ -102,8 +102,8 @@ class GOEnv(MujocoEnv):
         self.last_dof_pos = self.init_joints[-12:]
         self.last_dof_vel = np.zeros(12)
 
-        self.p_gain = np.zeros(self.action_dim) * self.cfg.control.stiffness
-        self.d_gain = np.zeros(self.action_dim) * self.cfg.control.damping
+        self.p_gain = np.ones(self.action_dim) * self.cfg.control.stiffness
+        self.d_gain = np.ones(self.action_dim) * self.cfg.control.damping
 
 
     @property
@@ -117,7 +117,7 @@ class GOEnv(MujocoEnv):
     @property
     def init_joints(self):
         # base position (x, y, z), base orientation (quaternion), 4x leg position (3 joints) 
-        return np.array([0, 0, 0.37, 1, 0, 0, 0] + [0, 0.7, -1.4]*4)
+        return np.array([0, 0, 0.5, 1, 0, 0, 0] + [0, 0, 0]*4)
 
     @property
     def base_rotation(self):
@@ -296,6 +296,8 @@ class GOEnv(MujocoEnv):
         reward_stumble = self._reward_stumble()
         reward_stand_still = self._reward_stand_still()
         reward_feet_contact_forces = self._reward_feet_contact_forces()
+
+        # self.data.contact.geom2
 
         rewards = [
             self.cfg.reward_scale.lin_vel_z * reward_lin_vel_z,
