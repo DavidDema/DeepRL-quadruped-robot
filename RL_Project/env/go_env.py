@@ -296,15 +296,15 @@ class GOEnv(MujocoEnv):
         reward_action_rate = self._reward_action_rate() * self.cfg.reward_scale.action_rate      
         reward_collision = self._reward_collision() * self.cfg.reward_scale.collision        
         reward_termination = self._reward_termination() * self.cfg.reward_scale.termination      
-        reward_dof_pos_limits = self._reward_dof_pos_limits() # * self.cfg.reward_scale.               
-        reward_dof_vel_limits = self._reward_dof_vel_limits() # * self.cfg.reward_scale.                
-        reward_torque_limits = self._reward_torque_limits() # * self.cfg.reward_scale.               
         reward_tracking_lin_vel = self._reward_tracking_lin_vel() * self.cfg.reward_scale.tracking_lin_vel 
         reward_tracking_ang_vel = self._reward_tracking_ang_vel() * self.cfg.reward_scale.tracking_ang_vel 
         reward_feet_air_time = self._reward_feet_air_time() * self.cfg.reward_scale.feet_air_time    
         reward_stumble = self._reward_stumble() * self.cfg.reward_scale.feet_stumble     
         reward_stand_still = self._reward_stand_still() * self.cfg.reward_scale.stand_still          
-        reward_feet_contact_forces = self._reward_feet_contact_forces() # * self.cfg.reward_scale.               
+        reward_dof_pos_limits = self._reward_dof_pos_limits()             
+        reward_dof_vel_limits = self._reward_dof_vel_limits()                
+        reward_torque_limits = self._reward_torque_limits()              
+        reward_feet_contact_forces = self._reward_feet_contact_forces()                
 
         rewards = [
             reward_lin_vel_z,
@@ -337,21 +337,21 @@ class GOEnv(MujocoEnv):
         info = {
             'reward_lin_vel_z': reward_lin_vel_z,
             'reward_ang_vel_xy': reward_ang_vel_xy,
-            'reward_orientation': reward_orientation,
-            'reward_base_height': reward_base_height,
             'reward_torques': reward_torques,
-            'reward_dof_vel': reward_dof_vel,
             'reward_dof_acc': reward_dof_acc,
             'reward_action_rate': reward_action_rate,
             'reward_collision': reward_collision,
-            'reward_termination': reward_termination,
             'reward_tracking_lin_vel': reward_tracking_lin_vel,
             'reward_tracking_ang_vel': reward_tracking_ang_vel,
             'reward_feet_air_time': reward_feet_air_time,
-            'reward_stumble': reward_stumble,
-            'reward_stand_still': reward_stand_still,
             'rewards_total': rewards_total,
             'traverse': self.data.qpos[0]
+            # 'reward_orientation': reward_orientation,
+            # 'reward_base_height': reward_base_height,
+            # 'reward_dof_vel': reward_dof_vel,
+            # 'reward_termination': reward_termination,
+            # 'reward_stumble': reward_stumble,
+            # 'reward_stand_still': reward_stand_still,
         }
 
         if self.render_mode == "human":
