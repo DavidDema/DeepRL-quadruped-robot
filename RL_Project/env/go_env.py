@@ -2,7 +2,6 @@ import numpy as np
 from gymnasium.envs.mujoco.mujoco_env import MujocoEnv
 from gymnasium.spaces import Box
 import os
-import torch
 
 
 class GOEnv(MujocoEnv):
@@ -95,12 +94,16 @@ class GOEnv(MujocoEnv):
         self.base_orientation = np.zeros(3)
         self.dof_pos = self.init_joints[-12:]
         self.dof_vel = np.zeros(12)
+        self.action = np.zeros(12)
+        self.torques = np.zeros(12)
         self.last_base_pos = self.init_joints[:3]
         self.last_base_vel = np.zeros(3)
         self.last_feet_pos = np.zeros(3)
         self.last_base_orientation = np.zeros(3)
         self.last_dof_pos = self.init_joints[-12:]
         self.last_dof_vel = np.zeros(12)
+        self.last_action = np.zeros(12)
+        self.contact_forces = self.data.cfrc_ext
 
         self.p_gain = np.ones(self.action_dim) * self.cfg.control.stiffness
         self.d_gain = np.ones(self.action_dim) * self.cfg.control.damping
@@ -191,7 +194,7 @@ class GOEnv(MujocoEnv):
     
     def _reward_collision(self):
         # Penalize collisions on selected bodies
-        return 0.0
+        return np.sum(1.*(np.linalg.norm(self.contact_forces) > 0.1))
 
     def _reward_feet_air_time(self):
         # Reward long steps
@@ -273,6 +276,12 @@ class GOEnv(MujocoEnv):
         self.dof_pos = self.data.qpos[7:]
         self.dof_vel = (self.last_dof_pos - self.dof_pos) / self.dt
         self.torques = self._compute_torques(self.action)
+        self.contact_forces = self.data.cfrc_ext
+
+        # print("self.data.contact.geom2")
+        # print(self.data.contact.geom2)
+        # print("self.data.geom_xpos")
+        # print(self.data.geom_xpos) 
 
         # feet_contact = self.data.contact.geom2
         terminate = self.terminated
@@ -296,10 +305,6 @@ class GOEnv(MujocoEnv):
         reward_stumble = self._reward_stumble() * self.cfg.reward_scale.feet_stumble     
         reward_stand_still = self._reward_stand_still() * self.cfg.reward_scale.stand_still          
         reward_feet_contact_forces = self._reward_feet_contact_forces() # * self.cfg.reward_scale.               
-
-        # self.data.contact.geom2
-        # self.data.geom_xpos 
-        self.data.cfrc_ext
 
         rewards = [
             reward_lin_vel_z,

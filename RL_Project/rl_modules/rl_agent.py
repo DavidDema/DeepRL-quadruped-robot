@@ -94,11 +94,6 @@ class RLAgent(nn.Module):
 
             value_batch = self.actor_critic.evaluate(obs_batch)
             
-            ### ETH
-            # value_batch = self.actor_critic.evaluate(
-            #     critic_obs_batch, masks=masks_batch, hidden_states=hid_states_batch[1]
-            # )
-
             mu_batch = self.actor_critic.action_mean
             sigma_batch = self.actor_critic.action_std
             entropy_batch = self.actor_critic.entropy
@@ -231,9 +226,9 @@ class RLAgent(nn.Module):
     def plot_results(save_dir, infos, rewards, actor_losses, critic_losses, it, num_learning_iterations):
 
         plt.clf()
-        plt.plot(np.array(actor_losses) * 100, label='actor')
+        plt.plot(np.array(actor_losses) * 10e8, label='actor')
         plt.plot(np.array(critic_losses), label='critic')
-        plt.plot(np.array(rewards), label='reward')
+        plt.plot(np.array(rewards) * 10e1, label='reward')
         plt.title("Actor/Critic Loss (" + str(it) + "/" + str(num_learning_iterations) + ")")
         plt.ylabel("Loss")
         plt.xlabel("Episodes")
