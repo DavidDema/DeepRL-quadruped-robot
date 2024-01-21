@@ -173,7 +173,7 @@ class RLAgent(nn.Module):
 
         plt.clf()
         plt.plot(np.array(actor_losses), label='actor')
-        plt.plot(np.array(critic_losses) / 500, label='critic')
+        plt.plot(np.array(critic_losses), label='critic')
         plt.plot(np.array(rewards), label='reward (x100)')
         plt.title("Actor/Critic Loss (" + str(it) + "/" + str(num_learning_iterations) + ")")
         plt.ylabel("Loss")
