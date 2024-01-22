@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 from networks.networks import MLP
 from torch.distributions import Normal
-
 import numpy as np
 
 class ActorCritic(nn.Module):
@@ -10,7 +9,7 @@ class ActorCritic(nn.Module):
                  state_dim,
                  action_dim,
                  hidden_dim=512,
-                 n_layers=1, #2
+                 n_layers=4,
                  init_std=1.0
                  ):
         super().__init__()
@@ -50,26 +49,17 @@ class ActorCritic(nn.Module):
         mean = self.actor(observations)
         self.distribution = Normal(mean, self.std)
 
-    def act(self, observations, exploration_prob, **kwargs):
-        """
-        Generate a random sample from the updated distribution
-        :param observations: Current state
-        :param exploration_prob:
-        :param kwargs:
-        :return:
-        """
-
-        self.update_distribution(observations)
-        actions_rand = self.distribution.sample()
-        actions_opt = self.act_inference(observations)
-
-        e = np.random.choice([1, 2], 1, p=[(1 - exploration_prob), exploration_prob])[0]
-        if e == 1:
-            actions = actions_opt
+    def act(self, observations, exploration_prob, explore_exploit=False, **kwargs):
+        if explore_exploit:     
+            self.update_distribution(observations)
+            e = np.random.choice([0, 1], 1, p=[(1-exploration_prob), exploration_prob])[0]
+            if e:
+                return self.distribution.sample()
+            else:
+                return self.act_inference(observations)
         else:
-            actions = actions_rand
-
-        return actions
+            self.update_distribution(observations)
+            return self.distribution.sample()
 
     def get_actions_log_prob(self, actions):
         return self.distribution.log_prob(actions).sum(dim=-1)
