@@ -15,7 +15,7 @@ class RLAgent(nn.Module):
                  env: GOEnv,
                  storage: Storage,
                  actor_critic: ActorCritic,
-                 lr=0.001,
+                 lr=0.0005,
                  value_loss_coef=1.0,
                  num_batches=4,
                  num_epochs=5,
@@ -213,6 +213,8 @@ class RLAgent(nn.Module):
         rewards_collection = []
         mean_value_loss_collection = []
         mean_actor_loss_collection = []
+        mean_traverse_collection = []
+        mean_height_collection = []
 
         plt.ion()
         plt.show(block=False)
@@ -221,7 +223,7 @@ class RLAgent(nn.Module):
             start_iter = time.time()
             progress = it / (num_learning_iterations + 1)
             print("---------------")
-            print(f"Episode {it}/{num_learning_iterations} ({progress:.2f}%)(Runtime {time.time()-start:.1f}s)")
+            print(f"Episode {it}/{num_learning_iterations} ({progress*100:.2f}%)(Runtime {(time.time()-start)/60:.1f}min)")
 
             if self.use_exploration:
                 min_prob, max_prob = 0.05, 1
@@ -235,43 +237,51 @@ class RLAgent(nn.Module):
             print(f"Actor Loss: {mean_actor_loss}")
             print(f"Value Loss: {mean_value_loss}")
 
+            info_mean = infos[0]
+            for key in info_mean.keys():
+                key_values = []
+                for info in infos:
+                    key_values.append(info[key])
+                info_mean[key] = np.mean(key_values)
             if False:
-                info_mean = infos[0]
-                for key in info_mean.keys():
-                    key_values = []
-                    for info in infos:
-                        key_values.append(info[key])
-                    info_mean[key] = np.mean(key_values)
-
                 print("------ Rewards ------ ")
                 max_length = max(len(key) for key in info_mean.keys())
                 for key in info_mean.keys():
                     print(key.ljust(max_length) + "\t : " + str(info_mean[key]))
             else:
-                pass
-                #print(f"Total Reward: {infos:.2f}")
+                print(f"Total Reward: {info_mean['total_reward']:.2f}")
 
             rewards_collection.append(np.mean(self.storage.rewards))
             mean_value_loss_collection.append(mean_value_loss)
             mean_actor_loss_collection.append(mean_actor_loss)
+            mean_traverse_collection.append(mean_traverse)
+            mean_height_collection.append(mean_height)
 
             if it % num_plots == 0:
-                self.plot_results(save_dir, rewards_collection, mean_actor_loss_collection, mean_value_loss_collection, it, num_learning_iterations)
+                self.plot_results(save_dir, rewards_collection, mean_actor_loss_collection, mean_value_loss_collection,
+                                  mean_traverse_collection, mean_height_collection,
+                                  it, num_learning_iterations)
 
             if it % num_steps_per_val == 0:
                 #infos = self.play(is_training=False)
                 print("Model saved")
                 self.save_model(os.path.join(save_dir, f'{it}.pt'))
-                self.save_model(os.path.join(save_dir, f'model.pt'))
+                self.save_model(f'checkpoints/model.pt')
             print(f"Finished after {time.time()-start_iter:.2f}s")
 
     @staticmethod
-    def plot_results(save_dir, rewards, actor_losses, critic_losses, it, num_learning_iterations):
+    def plot_results(save_dir, rewards, actor_losses, critic_losses, traverse, height, it, num_learning_iterations):
+
+        scale_actor = 0.1
+        scale_critic = 1000
+        scale_reward = 10
 
         plt.clf()
-        plt.plot(np.array(actor_losses)/actor_losses[0], label='actor')
-        plt.plot(np.array(critic_losses)/critic_losses[0], label='critic')
-        plt.plot(np.array(rewards)/rewards[0], label='reward (x100)')
+        plt.plot(np.array(actor_losses)/scale_actor, label=f'actor (x{scale_actor})')
+        plt.plot(np.array(critic_losses)/scale_critic, label=f'critic (x{scale_critic})')
+        plt.plot(np.array(rewards)/scale_reward, label=f'reward (x{scale_reward})')
+        plt.plot(np.array(traverse), label=f'traverse')
+        plt.plot(np.array(height), label=f'height')
         plt.title("Actor/Critic Loss (" + str(it) + "/" + str(num_learning_iterations) + ")")
         plt.ylabel("Loss")
         plt.xlabel("Episodes")
