@@ -14,7 +14,7 @@ def test():
     # create actor critic
     actor_critic = ActorCritic(state_dim=go_env.obs_dim, action_dim=go_env.action_dim).to(device)
     # create storage to save data
-    storage = Storage(obs_dim=go_env.obs_dim, action_dim=go_env.action_dim, max_timesteps=1000)
+    storage = Storage(obs_dim=go_env.obs_dim, action_dim=go_env.action_dim, max_timesteps=2000)
     rl_agent = RLAgent(env=go_env, actor_critic=actor_critic, storage=storage, device=device)
 
     #rl_agent.load_model('checkpoints/2024-01-22/12-10-21/500.pt')

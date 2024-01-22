@@ -68,8 +68,11 @@ class MLP(nn.Module):
                  act=nn.ELU(),
                  output_act=None,
                  lstm=False,
+                 dropout=True,
                  **kwargs):
         super().__init__()
+        dropout_layer = nn.Dropout(p=0.7)
+
         n_hidden = n_layers - 2
         input_layer = Dense(dim_in=dim_in, dim_out=dim_hidden, activation=act, **kwargs)
         layers = [input_layer]
@@ -78,8 +81,10 @@ class MLP(nn.Module):
             layers.append(hidden_layer)
         else:
             for i in range(n_hidden):
+                #layers.append(dropout_layer)
                 layers.append(Dense(dim_in=dim_hidden, dim_out=dim_hidden, activation=act, **kwargs))
-        
+
+        #layers.append(dropout_layer)
         output_layer = Dense(dim_in=dim_hidden, dim_out=dim_out, activation=output_act, **kwargs)
         layers.append(output_layer)
 

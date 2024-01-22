@@ -95,7 +95,7 @@ class GOEnv(MujocoEnv):
         orientation = 360 * np.array(self.base_rotation) / (2 * np.pi)
 
         # Angles over "unhealthy_angle" degree are unhealthy
-        unhealthy_angle = 300
+        unhealthy_angle = 40
         is_healthy_pitch = np.abs(orientation[0]) < unhealthy_angle
         is_healthy_roll = np.abs(orientation[1]) < unhealthy_angle
 
@@ -127,7 +127,8 @@ class GOEnv(MujocoEnv):
         """Normalized living reward.
         '-1' at begin and '+0' if lived long time (until the end of episode)"""
         if positive:
-            return scaling_factor * (1 - ((max_timesteps - timestep) / max_timesteps) ** 2)
+            #return scaling_factor * (1 - ((max_timesteps - timestep) / max_timesteps) ** 2)
+            return scaling_factor * np.exp(-2.0 * ((max_timesteps - timestep) / max_timesteps))
         else:
             return -scaling_factor * (((max_timesteps - timestep) / max_timesteps) ** 2)
 
@@ -139,18 +140,18 @@ class GOEnv(MujocoEnv):
             -np.linalg.norm((target_vel - lin_vel) ** 2))  ## **2 von mir hinzugefügt (Piet), nature Paper;
 
     def _reward_z_vel(self, before_pos, after_pos,
-                      scaling_factor=5.0):  ##(YAN)## should be very small, in total not so important, velocity is a big value
+                      scaling_factor=1.0):  ##(YAN)## should be very small, in total not so important, velocity is a big value
         # penalize movement in z direction
         z_vel = np.abs((after_pos[2] - before_pos[2])) / self.dt
         # return -scaling_factor * z_vel**2
-        return np.exp(-scaling_factor * z_vel ** 2)
+        return -scaling_factor * z_vel ** 2
 
     def _reward_z_pos(self, after_pos, scaling_factor=10.0):
         # penalize movement in z direction
         # dz = after_pos[2]-self.init_joints[2] ##(YAN)## init.joints lower to 0.5* oder kleiner!
         dz = after_pos[2] - 0.5 * self.init_joints[2]
         # return -scaling_factor * dz**2
-        return np.exp(-scaling_factor * dz ** 2)
+        return -scaling_factor * dz ** 2
 
     def _reward_pitch_roll(self, orientation, scaling_factor=10.0):
         # penalty for non-flat base orientation
@@ -209,14 +210,12 @@ class GOEnv(MujocoEnv):
     '''
 
     def step(self, delta_q):
-
-        action = delta_q + self.data.qpos[-12:]  ###(YAN)### hier auf jedenfall noch den Torque berechnen
-
         a = 2.0 * np.ones((12,))
         b = 0.5 * np.ones((12,))
         torque = a * delta_q - b * self.data.qvel[-12:]
-        #action = torque
+        action = torque
 
+        #action = delta_q + self.data.qpos[-12:]  ###(YAN)### hier auf jedenfall noch den Torque berechnen
         action = np.clip(action, a_min=self.lower_limits, a_max=self.upper_limits)
 
         before_pos = self.data.qpos[:3].copy()
@@ -235,9 +234,9 @@ class GOEnv(MujocoEnv):
         feet_cont = self.data.contact.geom2
 
         track_vel_reward = self._reward_lin_vel(before_pos, after_pos,
-                                                scaling_factor=15.0)  # 1.5; fkt 0.5 ##(YAN)## should be the biggest
+                                                scaling_factor=12.0)  # 1.5; fkt 0.5 ##(YAN)## should be the biggest
         living_reward = self._reward_living(timestep=self.timestep, max_timesteps=self.max_timesteps,
-                                            scaling_factor=2.0, positive=False)  # 3.5; fkt 5
+                                            scaling_factor=0.2, positive=True)  # 3.5; fkt 5
         # living_reward = 0
 
         healthy_reward = self._reward_healthy(
@@ -245,14 +244,14 @@ class GOEnv(MujocoEnv):
         yaw_rate_reward = self._reward_yaw_rate(before_orientation, after_orientation,
                                                 scaling_factor=2.0)  # 0.8; fkt 0.2
         pitchroll_rate_reward = self._reward_pitch_roll_rate(before_orientation, after_orientation,
-                                                             scaling_factor=2.0)  # 0.05; fkt 0.2
-        pitchroll_reward = self._reward_pitch_roll(after_orientation, scaling_factor=0.5)  # 5.0; fkt 2.0
+                                                             scaling_factor=1.0)  # 0.05; fkt 0.2
+        pitchroll_reward = self._reward_pitch_roll(after_orientation, scaling_factor=5.0)  # 5.0; fkt 2.0
         joint_pos_reward = self._reward_joint_pose(after_joints, self.init_joints[7:],
                                                    scaling_factor=0.3)  # 0.3; fkt 0.3
         orient_reward = self._reward_yaw(after_yaw, before_pos, after_pos, scaling_factor=0.3)  # 0.1; fkt 0.1
         z_vel_reward = self._reward_z_vel(before_pos=before_pos, after_pos=after_pos,
-                                          scaling_factor=2.0)  # 1.0; fkt 2.0
-        z_pos_reward = self._reward_z_pos(after_pos=after_pos, scaling_factor=2.0)  # 2.0; fkt 2.0
+                                          scaling_factor=2.0)  # 2.0; fkt 2.0
+        z_pos_reward = self._reward_z_pos(after_pos=after_pos, scaling_factor=1.0)  # 2.0; fkt 2.0
         foot_slip_reward = self._reward_foot_slip(feet_pos, feet_vel, feet_cont, scaling_factor=0.3)  # fkt 5.0
         # two_feet_reward = self._reward_two_feet(feet_cont, scaling_factor = 2.0) # fkt 5.0 ##(YAN)## should work without, just optional
         total_rewards = track_vel_reward + living_reward + (yaw_rate_reward + pitchroll_reward + \
@@ -277,6 +276,7 @@ class GOEnv(MujocoEnv):
             'z_vel_reward': z_vel_reward,
             'traverse': self.data.qpos[0],
             'height': self.data.qpos[2],
+            'roll': after_orientation[1],
             'feet_slip': foot_slip_reward,
             # 'two feet': two_feet_reward
         }

@@ -15,12 +15,12 @@ class RLAgent(nn.Module):
                  env: GOEnv,
                  storage: Storage,
                  actor_critic: ActorCritic,
-                 lr=0.0005,
+                 lr=0.0008,
                  value_loss_coef=1.0,
                  num_batches=4,
                  num_epochs=5,
                  device='cpu',
-                 action_scale=0.3,
+                 action_scale=0.6,
                  ppo_eps=0.2,
                  target_kl=0.5,
                  desired_kl=0.01,
@@ -211,10 +211,12 @@ class RLAgent(nn.Module):
 
     def learn(self, save_dir, num_learning_iterations=1000, num_steps_per_val=50, num_plots=10):
         rewards_collection = []
+        r2_collection = []
         mean_value_loss_collection = []
         mean_actor_loss_collection = []
         mean_traverse_collection = []
         mean_height_collection = []
+        traverse_max = 0
 
         plt.ion()
         plt.show(block=False)
@@ -234,14 +236,16 @@ class RLAgent(nn.Module):
             infos = self.play(is_training=True)  # play
             # improve policy with collected data
             mean_value_loss, mean_actor_loss = self.update()  # update
-            print(f"Actor Loss: {mean_actor_loss}")
-            print(f"Value Loss: {mean_value_loss}")
+            print(f"Actor Loss\t: {mean_actor_loss:.4f}")
+            print(f"Value Loss\t: {mean_value_loss:.4f}")
 
+            infos_array = infos[0]
             info_mean = infos[0]
             for key in info_mean.keys():
                 key_values = []
                 for info in infos:
                     key_values.append(info[key])
+                infos_array[key] = key_values
                 info_mean[key] = np.mean(key_values)
             if False:
                 print("------ Rewards ------ ")
@@ -249,17 +253,13 @@ class RLAgent(nn.Module):
                 for key in info_mean.keys():
                     print(key.ljust(max_length) + "\t : " + str(info_mean[key]))
             else:
-                print(f"Total Reward: {info_mean['total_reward']:.2f}")
+                print(f"Total Reward\t: {info_mean['total_reward']:.2f}")
 
-            try:
-                mean_traverse = info_mean['traverse']
-                mean_height = info_mean['height']
-            except Exception as e:
-                print(e)
-                mean_traverse = 0
-                mean_height = 0
+            mean_traverse = info_mean['traverse']
+            mean_height = info_mean['roll']
 
             rewards_collection.append(np.mean(self.storage.rewards))
+            r2_collection.append(np.sum(self.storage.rewards)/np.mean(self.storage.rewards))
             mean_value_loss_collection.append(mean_value_loss)
             mean_actor_loss_collection.append(mean_actor_loss)
             mean_traverse_collection.append(mean_traverse)
@@ -267,18 +267,32 @@ class RLAgent(nn.Module):
 
             if it % num_plots == 0:
                 self.plot_results(save_dir, rewards_collection, mean_actor_loss_collection, mean_value_loss_collection,
-                                  mean_traverse_collection, mean_height_collection,
+                                  mean_traverse_collection, mean_height_collection, r2_collection,
                                   it, num_learning_iterations)
+
+            print(f"Max.Traverse\t: {np.max(infos_array['traverse'])}")
 
             if it % num_steps_per_val == 0:
                 #infos = self.play(is_training=False)
                 print("Model saved")
                 self.save_model(os.path.join(save_dir, f'{it}.pt'))
-                self.save_model(f'checkpoints/model.pt')
+
+                if False:
+                    save_data_dir = os.path.join(save_dir, 'data')
+                    np.save(os.path.join(save_data_dir, f'rewards_mean.npy'), rewards_collection)
+                    np.save(os.path.join(save_data_dir, f'values_loss_mean.npy'), mean_value_loss_collection)
+                    np.save(os.path.join(save_data_dir, f'actors_loss_mean.npy'), mean_actor_loss_collection)
+                    np.save(os.path.join(save_data_dir, f'rewards_sum.npy'), r2_collection)
+                    print("Arrays saved to checkpoints/data/")
+
             print(f"Finished after {time.time()-start_iter:.2f}s")
 
+        print(f"Training finished after {(time.time()-start)/60} minutes!")
+
+
+
     @staticmethod
-    def plot_results(save_dir, rewards, actor_losses, critic_losses, traverse, height, it, num_learning_iterations):
+    def plot_results(save_dir, rewards, actor_losses, critic_losses, traverse, height, r2, it, num_learning_iterations):
 
         def smoothen_plot(data, width=10):
             smooth_data = data.copy()
@@ -294,14 +308,15 @@ class RLAgent(nn.Module):
         scale_critic = 10000
         scale_reward = 10
 
-        critic_losses = smoothen_plot(np.array(critic_losses), width=10)
+        #critic_losses = smoothen_plot(np.array(critic_losses), width=10)
 
         plt.clf()
         plt.plot(np.array(actor_losses)/scale_actor, label=f'actor (x{scale_actor})')
         plt.plot(np.array(critic_losses)/scale_critic, label=f'critic (x{scale_critic})')
         plt.plot(np.array(rewards)/scale_reward, label=f'reward (x{scale_reward})')
-        plt.plot(np.array(traverse), label=f'traverse', alpha=0.4)
-        plt.plot(np.array(height), label=f'height', alpha=0.4)
+        plt.plot(np.array(traverse), label=f'avg.traverse', alpha=0.4)
+        plt.plot(np.array(height), label=f'avg.height', alpha=0.4)
+        plt.plot(np.array(r2), label=f'rew_sum', alpha=0.4)
         plt.title("Actor/Critic Loss (" + str(it) + "/" + str(num_learning_iterations) + ")")
         plt.ylabel("Loss")
         plt.xlabel("Episodes")
@@ -312,15 +327,9 @@ class RLAgent(nn.Module):
         plt.draw()
         plt.pause(0.1)
 
-
-
-
-
-
     def save_model(self, path):
         torch.save(self.state_dict(), path)
         torch.save(self.state_dict(), 'checkpoints/model.pt')
-
 
     def load_model(self, path):
         self.load_state_dict(torch.load(path))

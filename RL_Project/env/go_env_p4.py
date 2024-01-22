@@ -16,7 +16,7 @@ class GOEnv(MujocoEnv):
 
     def __init__(self,
                  healthy_z_range=(0.15, 0.5),
-                 reset_noise_scale=1e-2,
+                 reset_noise_scale=0,#1e-2,
                  terminate_when_unhealthy=True,
                  exclude_current_positions_from_observation=False,
                  frame_skip=40,
@@ -95,7 +95,7 @@ class GOEnv(MujocoEnv):
         orientation = 360 * np.array(self.base_rotation) / (2 * np.pi)
 
         # Angles over "unhealthy_angle" degree are unhealthy
-        unhealthy_angle = 300
+        unhealthy_angle = 30
         is_healthy_pitch = np.abs(orientation[0]) < unhealthy_angle
         is_healthy_roll = np.abs(orientation[1]) < unhealthy_angle
 
@@ -127,9 +127,10 @@ class GOEnv(MujocoEnv):
         """Normalized living reward.
         '-1' at begin and '+0' if lived long time (until the end of episode)"""
         if positive:
-            return scaling_factor * (1 - ((max_timesteps - timestep) / max_timesteps) ** 2)
+            rew_living = (1 - ((max_timesteps - timestep) / max_timesteps) ** 2)
         else:
-            return -scaling_factor * (((max_timesteps - timestep) / max_timesteps) ** 2)
+            rew_living = -(((max_timesteps - timestep) / max_timesteps) ** 2)
+        return scaling_factor * rew_living
 
     def _reward_lin_vel(self, before_pos, after_pos, scaling_factor=10.0):
         # target_vel = np.array([0.5, 0, 0]) (Ausgangswerte)
@@ -148,7 +149,7 @@ class GOEnv(MujocoEnv):
     def _reward_z_pos(self, after_pos, scaling_factor=10.0):
         # penalize movement in z direction
         # dz = after_pos[2]-self.init_joints[2] ##(YAN)## init.joints lower to 0.5* oder kleiner!
-        dz = after_pos[2] - 0.5 * self.init_joints[2]
+        dz = after_pos[2] - self.init_joints[2]
         # return -scaling_factor * dz**2
         return np.exp(-scaling_factor * dz ** 2)
 
@@ -196,6 +197,15 @@ class GOEnv(MujocoEnv):
         # print(reward_slip)
         return np.exp(reward_slip)
         ## scaling_factor * sum (boolean * feet_velocity_x,y)
+
+    def _reward_traverse(self, scaling_factor=1.0):
+        return
+
+    def _reward_going_side(self, now_y, before_y, scaling_factor=1.0):
+        way_y = now_y - before_y
+        if np.abs(way_y) > 0.01:
+            way_y = -way_y
+        return scaling_factor * way_y
 
     ##(YAN)## just optional, no positive reward, and penalty smaller
     '''
@@ -293,6 +303,8 @@ class GOEnv(MujocoEnv):
         qvel = self.np_random.uniform(
             low=noise_low, high=noise_high, size=self.model.nv
         )
+        #qpos = self.init_joints
+        #qvel = self.init_joints*0
         self.set_state(qpos, qvel)
 
         observation = self._get_obs()
