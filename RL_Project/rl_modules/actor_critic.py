@@ -48,8 +48,14 @@ class ActorCritic(nn.Module):
 
     def update_distribution(self, observations):
         mean = self.actor(observations)
-        self.distribution = Normal(mean, self.std)
+        self.distribution = Normal(mean, self.std)  ## Die update_distribution-Methode muss keinen expliziten Rückgabewert haben, da sie self.distribution aktualisiert, und diese aktualisierte Verteilung von den anderen Methoden verwendet wird.
 
+
+    '''
+    Diese Methode wird verwendet, um im Trainingsmodus Aktionen zu sampeln. 
+    Es ruft self.update_distribution auf, um die Verteilung zu aktualisieren, 
+    und verwendet dann diese Verteilung, um eine Aktion zu sampeln.
+    ''' 
     def act(self, observations, **kwargs):
         self.update_distribution(observations)
         return self.distribution.sample()
@@ -57,8 +63,15 @@ class ActorCritic(nn.Module):
     def get_actions_log_prob(self, actions):
         return self.distribution.log_prob(actions).sum(dim=-1)
 
+    
+    '''
+    Für Reinforcement-Learning-Modelle, wie das Actor-Critic-Modell, 
+    bedeutet Inferenz, dass das trainierte Modell (der Actor) verwendet wird, 
+    um Aktionen basierend auf den aktuellen Beobachtungen zu generieren, ohne 
+    die Gewichtungen des Modells dabei zu aktualisieren.
+    '''
     def act_inference(self, observations):
-        with torch.no_grad():
+        with torch.no_grad():   ## ohne Gradienten zu berechnen
             actions_mean = self.actor(observations)
 
         return actions_mean

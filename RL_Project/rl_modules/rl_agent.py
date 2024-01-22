@@ -39,6 +39,8 @@ class RLAgent(nn.Module):
         self.action_scale = action_scale
         self.transition = Storage.Transition()
         # create the normalizer
+        # Der Adam-Optimierer ist eine Variante des stochastischen Gradientenabstiegs (SGD), der adaptive Lernraten für jedes Gewicht bereitstellt und dazu beiträgt, das Training von neuronalen Netzwerken zu verbessern.
+        # lr=lr: Dieser Parameter legt die Lernrate für den Adam-Optimierer fest. Die Lernrate steuert die Größe der Schritte, die der Optimierer während des Trainings geht.
         self.optimizer = optim.Adam(self.actor_critic.parameters(), lr=lr)
 
         # ppo
@@ -71,6 +73,10 @@ class RLAgent(nn.Module):
 
         return self.transition.action
 
+    '''
+     inference: Sie gibt die vorhergesagten Aktionen basierend auf den Beobachtungen zurück, 
+     ohne die Verteilung zu aktualisieren.
+    '''
     def inference(self, obs):
         return self.actor_critic.act_inference(obs).squeeze().detach().cpu().numpy()
 
@@ -125,11 +131,20 @@ class RLAgent(nn.Module):
             if ppo_eth:
                 value_batch = self.actor_critic.evaluate(obs_batch)
 
-                mu_batch = self.actor_critic.action_mean
-                sigma_batch = self.actor_critic.action_std
-                entropy_batch = self.actor_critic.entropy
+                mu_batch = self.actor_critic.action_mean        ## mean -value
+                sigma_batch = self.actor_critic.action_std      ## standad-deviation
+                entropy_batch = self.actor_critic.entropy       ## Unsicherheitsberechnung
 
-                # KL
+                # KL -> Kullback-Leibler-Divergenz
+                '''
+                Berechnung der KL-Divergenz (kl) zwischen der aktuellen Politik und der vorherigen Politik. Dies geschieht unter Verwendung der Logarithmusregel 
+                der Wahrscheinlichkeit und der Formel für die KL-Divergenz zweier normalverteilter Funktionen.
+                Berechnung des Durchschnitts (kl_mean) der KL-Divergenz über die Aktionen im Batch.
+                Dynamische Anpassung der Lernrate basierend auf dem Durchschnitt der KL-Divergenz:
+                Wenn kl_mean mehr als das Zweifache des gewünschten KL-Werts beträgt, wird die Lernrate verringert.
+                Wenn kl_mean weniger als die Hälfte des gewünschten KL-Werts und größer als null ist, wird die Lernrate erhöht.
+                Die Lernratenanpassung erfolgt durch Veränderung des Lernratenparameters der Optimierung (self.optimizer.param_groups).
+                '''
                 if self.desired_kl is not None and self.schedule == "adaptive":
                     with torch.inference_mode():
                         kl = torch.sum(
@@ -150,14 +165,32 @@ class RLAgent(nn.Module):
                             param_group["lr"] = self.learning_rate
 
                 # Surrogate loss
+                '''
+                Der Surrogatverlust ist eine Fehlermetrik, die den Unterschied 
+                zwischen der aktuellen Politik 
+                und der aktualisierten Politik misst. 
+                '''
                 ratio = torch.exp(actions_log_prob_batch - torch.squeeze(actions_log_prob_batch))
                 surrogate = -torch.squeeze(advantages_batch) * ratio
+                '''
+                Verhältnis, das zwischen 1.0 - self.clip_param und 1.0 + self.clip_param geklemmt ist. 
+                Dieser Schritt dient dazu, den Einfluss von großen Änderungen in der Politik zu begrenzen.
+                '''
                 surrogate_clipped = -torch.squeeze(advantages_batch) * torch.clamp(
                     ratio, 1.0 - self.ppo_eps, 1.0 + self.ppo_eps
                 )
+                '''
+                Der endgültige Aktorverlust wird als der größere der beiden Verluste (surrogate und surrogate_clipped) genommen, 
+                und dann wird der Durchschnitt über den Batch berechnet.
+                '''
                 actor_loss = torch.max(surrogate, surrogate_clipped).mean()
 
                 # Value function loss
+                '''
+                - value_batch: Die vorhergesagten Werte (Wertefunktion) für die Zustände, die vom Netzwerk vorhergesagt wurden.
+                - target_values_batch: Die Zielwerte (Vergleichswerte) für die Zustände
+                - returns_batch: Die tatsächlichen Rückgaben (Gesamtrückgaben) für die Zustände
+                '''
                 if self.use_clipped_value_loss:
                     value_clipped = target_values_batch + (value_batch - target_values_batch).clamp(
                         -self.ppo_eps, self.ppo_eps
@@ -168,6 +201,16 @@ class RLAgent(nn.Module):
                 else:
                     value_loss = (returns_batch - value_batch).pow(2).mean()
 
+                '''
+                Wenn self.use_clipped_value_loss wahr ist, wird ein geklippter Werteverlust verwendet. 
+                Dies kann dazu dienen, zu verhindern, dass der Werteverlust zu stark variiert.
+                value_loss: Der maximale der beiden Losses wird ausgewählt und gemittelt.
+                ------------
+                Die Gesamtverlustfunktion loss setzt sich aus diesen Teilen zusammen:
+                - actor_loss: Surrogatverlust für die Politik.
+                - self.value_loss_coef * value_loss: Der gewichtete Wertverlust.
+                - self.entropy_coef * entropy_batch.mean(): Der negative gewichtete Entropieverlust.
+                '''
                 loss = actor_loss + self.value_loss_coef * value_loss - self.entropy_coef * entropy_batch.mean()
 
             elif ppo:
@@ -190,15 +233,15 @@ class RLAgent(nn.Module):
                 loss = actor_loss + self.value_loss_coef * value_loss
 
             # Gradient step - update the parameters
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
+            self.optimizer.zero_grad()  ## Der Gradient des vorherigen Schritts wird zurückgesetzt, um sicherzustellen, dass keine akkumulierten Gradienten vorhanden sind.
+            loss.backward()             ## Der Backpropagation-Schritt, bei dem der Gradient der Verlustfunktion bezüglich der Netzwerkparameter berechnet wird.
+            self.optimizer.step()       ## Der Optimierungsschritt, bei dem die Netzwerkparameter anhand der berechneten Gradienten und der gewählten Optimierungsalgorithmus (Adam in diesem Fall) aktualisiert werden.
 
-            mean_value_loss += value_loss.item()
-            mean_actor_loss += actor_loss.item()
+            mean_value_loss += value_loss.item()    ## Akkumuliere den Wert des Werteverlusts für die Durchschnittsberechnung am Ende des Trainings.
+            mean_actor_loss += actor_loss.item()    ## Akkumuliere den Wert des Surrogatverlusts für die Durchschnittsberechnung am Ende des Trainings.
             
         num_updates = self.num_epochs * self.num_batches
-        mean_value_loss /= num_updates
+        mean_value_loss /= num_updates  ## Teilt die summierten Value Loss-Werte durch die Gesamtanzahl der Updates (num_updates), um den durchschnittlichen Value Loss pro Update zu berechnen.
         mean_actor_loss /= num_updates
         self.storage.clear()
 
