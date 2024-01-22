@@ -10,7 +10,7 @@ class ActorCritic(nn.Module):
                  state_dim,
                  action_dim,
                  hidden_dim=1024,   # 512 (Ausgangswert)
-                 n_layers=3,       #2 (Ausgangswert)
+                 n_layers=4,       #2 (Ausgangswert)
                  init_std=1.0
                  ):
         super().__init__()
@@ -50,26 +50,9 @@ class ActorCritic(nn.Module):
         mean = self.actor(observations)
         self.distribution = Normal(mean, self.std)
 
-    def act(self, observations, exploration_prob, **kwargs):
-        """
-        Generate a random sample from the updated distribution
-        :param observations: Current state
-        :param exploration_prob:
-        :param kwargs:
-        :return:
-        """
-
+    def act(self, observations, **kwargs):
         self.update_distribution(observations)
-        actions_rand = self.distribution.sample()
-        actions_opt = self.act_inference(observations)
-
-        e = np.random.choice([1, 2], 1, p=[(1 - exploration_prob), exploration_prob])[0]
-        if e == 1:
-            actions = actions_opt
-        else:
-            actions = actions_rand
-
-        return actions
+        return self.distribution.sample()
 
     def get_actions_log_prob(self, actions):
         return self.distribution.log_prob(actions).sum(dim=-1)

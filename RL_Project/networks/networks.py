@@ -63,7 +63,7 @@ class MLP(nn.Module):
                  dim_in,
                  dim_hidden,
                  dim_out,
-                 n_layers=2,
+                 n_layers=4,
                  act=nn.ELU(),
                  output_act=None,
                  lstm=True,

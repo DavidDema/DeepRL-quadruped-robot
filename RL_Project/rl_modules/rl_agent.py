@@ -13,19 +13,19 @@ class RLAgent(nn.Module):
                  env: GOEnv,
                  storage: Storage,
                  actor_critic: ActorCritic,
-                 lr=1e-3,
+                 lr=1e-2, ## 1e-3 Ausgangswert
                  value_loss_coef=1.0,
                  num_batches=1,
                  num_epochs=1,
                  device='cpu',
-                 action_scale=0.3,
+                 action_scale=2.0, # 0.3 Ausgangswert
                  ppo_eps=0.2, # 0.2 Ausgangswert
                  target_kl=0.5,
                  
                  desired_kl=0.01, ##Kira PPO## ##0.01
-                 learning_rate=1e-3,
+                 learning_rate=1e-2,
                  use_clipped_value_loss=True,
-                 entropy_coef=0.0,
+                 entropy_coef=0.001,
                  schedule="adaptive", # fixed
                  ):
         super().__init__()
@@ -249,7 +249,7 @@ class RLAgent(nn.Module):
             # Exploration probability should be high at the beginning and low with well learned network
             progress = it/(num_learning_iterations+1)
             max_prob = 1
-            min_prob = 0.05
+            min_prob = 0.3     ## 0.05
             #self.exploration_prob = -(max_prob-min_prob)*progress + max_prob
             k = 4 ## (Ausgangswert 4)
             self.exploration_prob = np.exp(-(k*progress-np.log(max_prob-min_prob)))+min_prob
@@ -331,24 +331,32 @@ class RLAgent(nn.Module):
     '''
         
         keys = ['track_vel_reward',
-                'joint_pos_reward',
+                'living_reward',
                 'pitchroll_rate_reward',
                 'orient_reward',
                 'pitchroll_reward',
                 'yaw_rate_reward',
                 'healthy_reward',
-                'total_reward']
+                'z_pos_reward',
+                'z_vel_reward',
+                'feet_slip',
+                'forward'
+                ]
         infos_array = np.array([[info[key] for key in keys] for info in infos])
         mean_values = np.mean(infos_array, axis=0)
 
         keys_print = ['track_vel_reward      : ',
-                      'joint_pos_reward      : ',
                       'pitchroll_rate_reward : ',
                       'orient_reward         : ',
                       'pitchroll_reward      : ',
                       'yaw_rate_reward       : ',
                       'healthy_reward        : ',
-                      'total_reward          : ', ]
+                      'living_reward         : ', 
+                      'z_pos_reward          : ',
+                      'z_vel_reward          : ',
+                      'feet_slip             : ',
+                      'forward               : ',
+                      ]
         
         print(f"------- Episode {it}/{num_learning_iterations} ------------")
         print("Losses:")
@@ -362,6 +370,7 @@ class RLAgent(nn.Module):
 
     def save_model(self, path):
             torch.save(self.state_dict(), path)
+            torch.save(self.state_dict(), 'checkpoints/model.pt')
 
     def load_model(self, path):
         self.load_state_dict(torch.load(path))
