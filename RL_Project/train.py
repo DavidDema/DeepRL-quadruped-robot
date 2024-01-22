@@ -7,6 +7,8 @@ from datetime import datetime
 import os
 import torch
 
+VIZ = False
+
 def train():
     if torch.cuda.is_available():
         device ='cuda'
@@ -14,8 +16,10 @@ def train():
         device = 'cpu'
     log_name = datetime.now().strftime("%Y-%m-%d/%H-%M-%S")
     # create environment
-    go_env = GOEnv()
-    #go_env = GOEnv(render_mode="human")
+    if not VIZ:
+        go_env = GOEnv()
+    else:
+        go_env = GOEnv(render_mode="human")
     # create actor critic
     actor_critic = ActorCritic(state_dim=go_env.obs_dim, action_dim=go_env.action_dim).to(device)
     # create storage to save data
@@ -26,7 +30,6 @@ def train():
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
     rl_agent.learn(save_dir, num_learning_iterations=500, num_steps_per_val=50, num_plots=25) # start to learn!!!
-
 
 if __name__ == '__main__':
     train()

@@ -124,20 +124,25 @@ class GOEnv(MujocoEnv):
             return -scaling_factor * (((max_timesteps - timestep) / max_timesteps) ** 2)
 
     def _reward_lin_vel(self, before_pos, after_pos, scaling_factor=10.0):
-        target_vel = np.array([0.5, 0, 0])
+        # target_vel = np.array([0.5, 0, 0]) (Ausgangswerte)
+        target_vel = np.array([0.0, 0, 0])
         lin_vel = (after_pos - before_pos) / self.dt
-        return scaling_factor * np.exp(-np.linalg.norm(target_vel - lin_vel))
+        return scaling_factor * np.exp(
+            -np.linalg.norm((target_vel - lin_vel) ** 2))  ## **2 von mir hinzugefügt (Piet), nature Paper;
 
-    def _reward_z_vel(self, before_pos, after_pos, scaling_factor=5.0):
+    def _reward_z_vel(self, before_pos, after_pos,
+                      scaling_factor=5.0):  ##(YAN)## should be very small, in total not so important, velocity is a big value
         # penalize movement in z direction
         z_vel = np.abs((after_pos[2] - before_pos[2])) / self.dt
-        return -scaling_factor * z_vel ** 2
+        # return -scaling_factor * z_vel**2
+        return np.exp(-scaling_factor * z_vel ** 2)
 
     def _reward_z_pos(self, after_pos, scaling_factor=10.0):
         # penalize movement in z direction
-        target_height = self.init_joints[2]*0.8
-        dz = after_pos[2] - target_height
-        return -scaling_factor * dz ** 2
+        # dz = after_pos[2]-self.init_joints[2] ##(YAN)## init.joints lower to 0.5* oder kleiner!
+        dz = after_pos[2] * self.init_joints[2] * 0.5
+        # return -scaling_factor * dz**2
+        return np.exp(-scaling_factor * dz ** 2)
 
     def _reward_pitch_roll(self, orientation, scaling_factor=10.0):
         # penalty for non-flat base orientation
@@ -163,12 +168,43 @@ class GOEnv(MujocoEnv):
 
     def _reward_joint_pose(self, current_joints, init_joints, scaling_factor=10.0):
         # reward joint positions similar to init position
-        return -scaling_factor * np.linalg.norm(init_joints - current_joints)
+        return -scaling_factor * np.linalg.norm(
+            init_joints - current_joints) ** 2  ## auch hier **2 Piet hinzugefügt
+
+    def _reward_foot_slip(self, feet_pos, feet_vel, feet_cont,
+                          scaling_factor=1.0):  ##(YAN)## sehr viel kleiner machen
+        if feet_cont.any():
+            sum_velocity_squared = 0.0
+            velocity_squared = 0.0
+
+            for contact_index in feet_cont:
+                # if 0 <= contact_index < len(feet_pos):
+                velocity_squared = np.sum(feet_vel[contact_index][:2] ** 2)
+                sum_velocity_squared += velocity_squared
+
+                # print(velocity_squared)
+            reward_slip = -scaling_factor * velocity_squared
+
+        else:
+            reward_slip = 0.0
+        # print(reward_slip)
+        return np.exp(reward_slip)
+        ## scaling_factor * sum (boolean * feet_velocity_x,y)
+
+    ##(YAN)## just optional, no positive reward, and penalty smaller
+    '''
+    def _reward_two_feet(self, feet_cont, scaling_factor = 1.0):
+        #if len(feet_cont) < 2 or any(np.array_equal(feet_cont, pair) for pair in [[10, 28], [19, 37]]): ## optional, kleiner machen
+        if len(feet_cont) < 1:    
+            reward_two_feet = -scaling_factor * 100
+        else:
+            reward_two_feet = scaling_factor * 10
+        return reward_two_feet
+    '''
 
     def step(self, delta_q):
-        action = delta_q + self.data.qpos[-12:]
-        action_torque = action * 1.0 + self.data.qvel[-12:] * 0.2
-        action = np.clip(action_torque, a_min=self.lower_limits, a_max=self.upper_limits)
+        action = delta_q + self.data.qpos[-12:]  ###(YAN)### hier auf jedenfall noch den Torque berechnen
+        action = np.clip(action, a_min=self.lower_limits, a_max=self.upper_limits)
 
         before_pos = self.data.qpos[:3].copy()
         before_vel = self.data.qvel[:3].copy()
@@ -180,23 +216,37 @@ class GOEnv(MujocoEnv):
         after_yaw = after_orientation[2]
         after_joints = self.data.qpos[7:]
 
-        track_vel_reward = self._reward_lin_vel(before_pos, after_pos, scaling_factor=15)  # 1.5
-        living_reward = self._reward_living(timestep=self.timestep, max_timesteps=self.max_timesteps, scaling_factor=0,
-                                            positive=False)  # 3.5
+        # Piet
+        feet_pos = self.data.geom_xpos  # [[10,19,28,37]]
+        feet_vel = feet_pos / self.dt
+        feet_cont = self.data.contact.geom2
+
+        track_vel_reward = self._reward_lin_vel(before_pos, after_pos,
+                                                scaling_factor=10.0)  # 1.5; fkt 0.5 ##(YAN)## should be the biggest
+        living_reward = self._reward_living(timestep=self.timestep, max_timesteps=self.max_timesteps,
+                                            scaling_factor=2.0, positive=False)  # 3.5; fkt 5
         # living_reward = 0
 
-        healthy_reward = self._reward_healthy(scaling_factor=3.0)  # 1.0
-        yaw_rate_reward = self._reward_yaw_rate(before_orientation, after_orientation, scaling_factor=0.5)  # 0.8
+        healthy_reward = self._reward_healthy(
+            scaling_factor=5.0)  # 1.0; fkt 15 ##(YAN)##increase, damit er nicht einfach vorne über fällt!
+        yaw_rate_reward = self._reward_yaw_rate(before_orientation, after_orientation,
+                                                scaling_factor=2.0)  # 0.8; fkt 0.2
         pitchroll_rate_reward = self._reward_pitch_roll_rate(before_orientation, after_orientation,
-                                                             scaling_factor=0.5)  # 0.05
-        pitchroll_reward = self._reward_pitch_roll(after_orientation, scaling_factor=2.0)  # 5.0
-        joint_pos_reward = self._reward_joint_pose(after_joints, self.init_joints[7:], scaling_factor=0.5)  # 0.3
-        orient_reward = self._reward_yaw(after_yaw, before_pos, after_pos, scaling_factor=0.5)  # 0.1
-        z_vel_reward = self._reward_z_vel(before_pos=before_pos, after_pos=after_pos, scaling_factor=0.0)  # 1.0
-        z_pos_reward = self._reward_z_pos(after_pos=after_pos, scaling_factor=2.0)  # 2.0
-
+                                                             scaling_factor=2.0)  # 0.05; fkt 0.2
+        pitchroll_reward = self._reward_pitch_roll(after_orientation, scaling_factor=0.5)  # 5.0; fkt 2.0
+        joint_pos_reward = self._reward_joint_pose(after_joints, self.init_joints[7:],
+                                                   scaling_factor=0.3)  # 0.3; fkt 0.3
+        orient_reward = self._reward_yaw(after_yaw, before_pos, after_pos, scaling_factor=0.3)  # 0.1; fkt 0.1
+        z_vel_reward = self._reward_z_vel(before_pos=before_pos, after_pos=after_pos,
+                                          scaling_factor=2.0)  # 1.0; fkt 2.0
+        z_pos_reward = self._reward_z_pos(after_pos=after_pos, scaling_factor=2.0)  # 2.0; fkt 2.0
+        foot_slip_reward = self._reward_foot_slip(feet_pos, feet_vel, feet_cont, scaling_factor=0.3)  # fkt 5.0
+        # two_feet_reward = self._reward_two_feet(feet_cont, scaling_factor = 2.0) # fkt 5.0 ##(YAN)## should work without, just optional
         total_rewards = track_vel_reward + living_reward + (yaw_rate_reward + pitchroll_reward + \
-                                                            orient_reward + pitchroll_rate_reward + joint_pos_reward + z_vel_reward + z_pos_reward)
+                                                            orient_reward + pitchroll_rate_reward + z_vel_reward + z_pos_reward + \
+                                                            foot_slip_reward)
+
+        # total_rewards = track_vel_reward + living_reward + (foot_slip_reward + two_feet_reward + z_pos_reward)
 
         terminate = self.terminated
         observation = self._get_obs()
@@ -212,6 +262,8 @@ class GOEnv(MujocoEnv):
             'living_reward': living_reward,
             'z_pos_reward': z_pos_reward,
             'z_vel_reward': z_vel_reward,
+            'traverse': self.data.qpos[0],
+            'feet_slip': foot_slip_reward,
             'traverse': self.data.qpos[0],
             'height': self.data.qpos[2] / self.init_joints[2],
         }
