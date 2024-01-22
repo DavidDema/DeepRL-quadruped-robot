@@ -280,21 +280,10 @@ class RLAgent(nn.Module):
     @staticmethod
     def plot_results(save_dir, rewards, actor_losses, critic_losses, traverse, height, it, num_learning_iterations):
 
-        def smoothen_plot(data, width=10):
-            smooth_data = data.copy()
-            for i in range(len(data)):
-                if i < width or i > len(data) - width:
-                    continue
-                obs_data = data[(i - width):(i + width)]
-                smooth_data[i] = smooth_data[i] / np.mean(obs_data)
-            return smooth_data
-
         # Scaling
         scale_actor = 0.1
         scale_critic = 10000
         scale_reward = 10
-
-        critic_losses = smoothen_plot(np.array(critic_losses), width=10)
 
         plt.clf()
         plt.plot(np.array(actor_losses)/scale_actor, label=f'actor (x{scale_actor})')
@@ -311,10 +300,6 @@ class RLAgent(nn.Module):
         plt.savefig(os.path.join(save_dir, f'ac_loss.png'))
         plt.draw()
         plt.pause(0.1)
-
-
-
-
 
 
     def save_model(self, path):

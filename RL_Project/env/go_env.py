@@ -45,9 +45,10 @@ class GOEnv(MujocoEnv):
             stand_still = -0.
 
         class Control:
+            control_type = 'P'
             stiffness = 2.0 # 15 
             damping = 0.5 # 1.5
-            action_scale = 1.0
+            action_scale = 0.5
         
         def __init__(self):
             self.base_height_target = 0.34
@@ -120,6 +121,7 @@ class GOEnv(MujocoEnv):
         self.p_gain = np.ones(self.action_dim) * self.cfg.control.stiffness
         self.d_gain = np.ones(self.action_dim) * self.cfg.control.damping
 
+        self.torque_limits = 10.0
 
     @property
     def lower_limits(self):
@@ -246,7 +248,7 @@ class GOEnv(MujocoEnv):
         
     def _reward_torques(self):
         # Penalize torques
-        return np.sum(np.square(self.last_torques))
+        return np.sum(np.square(self.torques))
     
     def _reward_dof_acc(self):
         # Penalize dof accelerations
@@ -308,13 +310,16 @@ class GOEnv(MujocoEnv):
         self.last_base_orientation = self.base_rotation
         self.last_dof_pos = self.data.qpos[-12:].copy()
         self.last_dof_vel = self.data.qvel[-12:].copy()
-
+        
         self.action = delta_q + self.data.qpos[-12:]
-        self.last_torques = self.p_gain * delta_q - self.d_gain * self.data.qvel[-12:]
-        #action = torque
         self.action = np.clip(self.action, a_min=self.lower_limits, a_max=self.upper_limits)
 
-        self.do_simulation(self.action, self.frame_skip)
+        if False:
+            torque = self.p_gain * delta_q - self.d_gain * self.data.qvel[-12:]
+            torque = np.clip(torque, a_min=self.lower_limits, a_max=self.upper_limits)
+        else:
+            torque = self.action
+        self.do_simulation(torque, self.frame_skip)
 
         self.base_pos = self.data.qpos[:3].copy()
         self.base_lin_vel = self.data.qvel[:3].copy()
@@ -322,8 +327,8 @@ class GOEnv(MujocoEnv):
         self.base_orientation = self.base_rotation
         self.dof_pos = self.data.qpos[-12:].copy()
         self.dof_vel = self.data.qvel[-12:].copy()
-        self.action = delta_q + self.data.qpos[-12:].copy()
-        self.action = np.clip(self.action, a_min=self.lower_limits, a_max=self.upper_limits)
+        # self.action = delta_q + self.data.qpos[-12:].copy()
+        # self.action = np.clip(self.action, a_min=self.lower_limits, a_max=self.upper_limits)
         self.torques = self.data.qfrc_applied # self._compute_torques(self.action) # which torque ?
         
         self.dof_acc = (self.last_dof_vel - self.dof_vel) / self.dt  
@@ -371,13 +376,13 @@ class GOEnv(MujocoEnv):
             # ETH
             tracking_lin_vel_reward * self.cfg.reward_scale.tracking_lin_vel,
             tracking_ang_vel_reward * self.cfg.reward_scale.tracking_ang_vel,
-            lin_vel_z_reward * self.cfg.reward_scale.lin_vel_z,
-            ang_vel_xy_reward * self.cfg.reward_scale.ang_vel_xy,
-            torques * self.cfg.reward_scale.torques,
-            dof_acc * self.cfg.reward_scale.dof_acc,
-            feet_air_time * self.cfg.reward_scale.feet_air_time,
-            collision * self.cfg.reward_scale.collision,
-            action_rate * self.cfg.reward_scale.action_rate,
+            lin_vel_z_reward        * self.cfg.reward_scale.lin_vel_z,
+            ang_vel_xy_reward       * self.cfg.reward_scale.ang_vel_xy,
+            torques                 * self.cfg.reward_scale.torques,
+            dof_acc                 * self.cfg.reward_scale.dof_acc,
+            feet_air_time           * self.cfg.reward_scale.feet_air_time,
+            collision               * self.cfg.reward_scale.collision,
+            action_rate             * self.cfg.reward_scale.action_rate,
         ]
 
         total_rewards = np.sum(rewards)
@@ -395,17 +400,17 @@ class GOEnv(MujocoEnv):
             'feet_air_time': feet_air_time,
             'collision': collision,
             'action_rate': action_rate,
-            # 'joint_pos_reward': joint_pos_reward,
-            # 'pitchroll_rate_reward': pitchroll_rate_reward,
-            # 'orient_reward': orient_reward,
-            # 'pitchroll_reward': pitchroll_reward,
-            # 'yaw_rate_reward': yaw_rate_reward,
-            # 'track_vel_reward': track_vel_reward,
-            # 'healthy_reward': healthy_reward,
-            # 'living_reward': living_reward,
-            # 'z_pos_reward': z_pos_reward,
-            # 'z_vel_reward': z_vel_reward,
-            # 'feet_slip': foot_slip_reward,
+            'joint_pos_reward': joint_pos_reward,
+            'pitchroll_rate_reward': pitchroll_rate_reward,
+            'orient_reward': orient_reward,
+            'pitchroll_reward': pitchroll_reward,
+            'yaw_rate_reward': yaw_rate_reward,
+            'track_vel_reward': track_vel_reward,
+            'healthy_reward': healthy_reward,
+            'living_reward': living_reward,
+            'z_pos_reward': z_pos_reward,
+            'z_vel_reward': z_vel_reward,
+            'feet_slip': foot_slip_reward,
             'traverse': self.data.qpos[0],
             'height': self.data.qpos[2],
         }
@@ -435,3 +440,27 @@ class GOEnv(MujocoEnv):
         for key in info.keys():
             print(f"{key} : {info[key]:.2f}")
         return
+
+    def _compute_torques(self, actions):
+        """ Compute torques from actions.
+            Actions can be interpreted as position or velocity targets given to a PD controller, or directly as scaled torques.
+            [NOTE]: torques must have the same dimension as the number of DOFs, even if some DOFs are not actuated.
+
+        Args:
+            actions (torch.Tensor): Actions
+
+        Returns:
+            [torch.Tensor]: Torques sent to the simulation
+        """
+        #pd controller
+        actions_scaled = actions * self.cfg.control.action_scale
+        control_type = self.cfg.control.control_type
+        if control_type=="P":
+            torques = self.p_gain*(actions_scaled + self.init_joints[-12:] - self.dof_pos) - self.d_gain*self.dof_vel
+        elif control_type=="V":
+            torques = self.p_gain*(actions_scaled - self.dof_vel) - self.d_gain*(self.dof_vel - self.last_dof_vel)/self.sim_params.dt
+        elif control_type=="T":
+            torques = actions_scaled
+        else:
+            raise NameError(f"Unknown controller type: {control_type}")
+        return np.clip(torques, -self.torque_limits, self.torque_limits)
