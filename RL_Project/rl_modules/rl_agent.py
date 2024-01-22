@@ -251,6 +251,14 @@ class RLAgent(nn.Module):
             else:
                 print(f"Total Reward: {info_mean['total_reward']:.2f}")
 
+            try:
+                mean_traverse = info_mean['traverse']
+                mean_height = info_mean['height']
+            except Exception as e:
+                print(e)
+                mean_traverse = 0
+                mean_height = 0
+
             rewards_collection.append(np.mean(self.storage.rewards))
             mean_value_loss_collection.append(mean_value_loss)
             mean_actor_loss_collection.append(mean_actor_loss)
@@ -272,6 +280,7 @@ class RLAgent(nn.Module):
     @staticmethod
     def plot_results(save_dir, rewards, actor_losses, critic_losses, traverse, height, it, num_learning_iterations):
 
+        # Scaling
         scale_actor = 0.1
         scale_critic = 1000
         scale_reward = 10
@@ -280,13 +289,15 @@ class RLAgent(nn.Module):
         plt.plot(np.array(actor_losses)/scale_actor, label=f'actor (x{scale_actor})')
         plt.plot(np.array(critic_losses)/scale_critic, label=f'critic (x{scale_critic})')
         plt.plot(np.array(rewards)/scale_reward, label=f'reward (x{scale_reward})')
-        plt.plot(np.array(traverse), label=f'traverse')
-        plt.plot(np.array(height), label=f'height')
+        plt.plot(np.array(traverse), label=f'traverse', alpha=0.4)
+        plt.plot(np.array(height), label=f'height', alpha=0.4)
         plt.title("Actor/Critic Loss (" + str(it) + "/" + str(num_learning_iterations) + ")")
         plt.ylabel("Loss")
         plt.xlabel("Episodes")
-        plt.savefig(os.path.join(save_dir, f'ac_loss.png'))
+        plt.ylim([-1, 4]) # lock y-axis
+        #plt.grid(True)
         plt.legend()
+        plt.savefig(os.path.join(save_dir, f'ac_loss.png'))
         plt.draw()
         plt.pause(0.1)
 

@@ -24,7 +24,7 @@ def train():
     save_dir = f'checkpoints/{log_name}'
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
-    rl_agent.learn(save_dir, num_learning_iterations=500, num_steps_per_val=50, num_plots=1) # start to learn!!!
+    rl_agent.learn(save_dir, num_learning_iterations=500, num_steps_per_val=10, num_plots=1) # start to learn!!!
 
 
 if __name__ == '__main__':
