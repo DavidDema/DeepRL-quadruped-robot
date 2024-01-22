@@ -1,0 +1,55 @@
+Index: RL_Project/train.py
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>from rl_modules.rl_agent import RLAgent\nfrom env.go_env import GOEnv\nfrom rl_modules.storage import Storage\nfrom rl_modules.actor_critic import ActorCritic\nimport wandb\nfrom datetime import datetime\nimport os\nimport torch\n\ndef train():\n    if torch.cuda.is_available():\n        device ='cuda'\n    else:\n        device = 'cpu'\n    log_name = datetime.now().strftime(\"%Y-%m-%d/%H-%M-%S\")\n    # create environment\n    go_env = GOEnv()\n    #go_env = GOEnv(render_mode=\"human\")\n    # create actor critic\n    actor_critic = ActorCritic(state_dim=go_env.obs_dim, action_dim=go_env.action_dim).to(device)\n    # create storage to save data\n    storage = Storage(obs_dim=go_env.obs_dim, action_dim=go_env.action_dim, max_timesteps=1000)\n    rl_agent = RLAgent(env=go_env, actor_critic=actor_critic, storage=storage, device=device)\n\n    save_dir = f'checkpoints/{log_name}'\n    if not os.path.exists(save_dir):\n        os.makedirs(save_dir)\n    rl_agent.learn(save_dir, num_learning_iterations=500, num_steps_per_val=50, num_plots=25) # start to learn!!!\n\n\nif __name__ == '__main__':\n    train()\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/RL_Project/train.py b/RL_Project/train.py
+--- a/RL_Project/train.py	
++++ b/RL_Project/train.py	
+@@ -14,8 +14,8 @@
+         device = 'cpu'
+     log_name = datetime.now().strftime("%Y-%m-%d/%H-%M-%S")
+     # create environment
+-    go_env = GOEnv()
+-    #go_env = GOEnv(render_mode="human")
++    #go_env = GOEnv()
++    go_env = GOEnv(render_mode="human")
+     # create actor critic
+     actor_critic = ActorCritic(state_dim=go_env.obs_dim, action_dim=go_env.action_dim).to(device)
+     # create storage to save data
+Index: .idea/deeprl_cheetah.iml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+><?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<module type=\"PYTHON_MODULE\" version=\"4\">\n  <component name=\"NewModuleRootManager\">\n    <content url=\"file://$MODULE_DIR$\" />\n    <orderEntry type=\"inheritedJdk\" />\n    <orderEntry type=\"sourceFolder\" forTests=\"false\" />\n  </component>\n</module>
+===================================================================
+diff --git a/.idea/deeprl_cheetah.iml b/.idea/deeprl_cheetah.iml
+--- a/.idea/deeprl_cheetah.iml	
++++ b/.idea/deeprl_cheetah.iml	
+@@ -2,7 +2,7 @@
+ <module type="PYTHON_MODULE" version="4">
+   <component name="NewModuleRootManager">
+     <content url="file://$MODULE_DIR$" />
+-    <orderEntry type="inheritedJdk" />
++    <orderEntry type="jdk" jdkName="robotlearning" jdkType="Python SDK" />
+     <orderEntry type="sourceFolder" forTests="false" />
+   </component>
+ </module>
+\ No newline at end of file
+Index: .idea/misc.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+><?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<project version=\"4\">\n  <component name=\"Black\">\n    <option name=\"sdkName\" value=\"Python 3.8\" />\n  </component>\n  <component name=\"ProjectRootManager\" version=\"2\" project-jdk-name=\"Python 3.8\" project-jdk-type=\"Python SDK\" />\n</project>
+===================================================================
+diff --git a/.idea/misc.xml b/.idea/misc.xml
+--- a/.idea/misc.xml	
++++ b/.idea/misc.xml	
+@@ -3,5 +3,5 @@
+   <component name="Black">
+     <option name="sdkName" value="Python 3.8" />
+   </component>
+-  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.8" project-jdk-type="Python SDK" />
++  <component name="ProjectRootManager" version="2" project-jdk-name="robotlearning" project-jdk-type="Python SDK" />
+ </project>
+\ No newline at end of file

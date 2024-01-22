@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="e9089e00-fa15-4284-afd3-2e69522420b7" name="Changes" comment="Änderungen:&#10;- rewards (angelehnt an Nino)&#10;- plots&#10;&#10;2024-01-20" />
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="Python Script" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="nino" />
+      </map>
+    </option>
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="MarkdownSettingsMigration">
+    <option name="stateVersion" value="1" />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;customColor&quot;: &quot;&quot;,
+  &quot;associatedIndex&quot;: 8
+}</component>
+  <component name="ProjectId" id="2aj0NTgUXLZ7zIHgR9Hzbg6wFqr" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;WebServerToolWindowFactoryState&quot;: &quot;false&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;kira2&quot;,
+    &quot;last_opened_file_path&quot;: &quot;/home/kira/Documents/deeprl_cheetah&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  }
+}</component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="e9089e00-fa15-4284-afd3-2e69522420b7" name="Changes" comment="" />
+      <created>1704816640800</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1704816640800</updated>
+      <workItem from="1704816641936" duration="709000" />
+      <workItem from="1704817369015" duration="15000" />
+      <workItem from="1704872527417" duration="9066000" />
+      <workItem from="1705043530039" duration="5775000" />
+      <workItem from="1705057628236" duration="35799000" />
+      <workItem from="1705223520730" duration="2000" />
+      <workItem from="1705223791908" duration="2000" />
+      <workItem from="1705308399201" duration="731000" />
+      <workItem from="1705309174025" duration="386000" />
+      <workItem from="1705309590857" duration="1265000" />
+      <workItem from="1705321337513" duration="346000" />
+      <workItem from="1705403978640" duration="1250000" />
+      <workItem from="1705408087543" duration="271000" />
+      <workItem from="1705408417862" duration="9106000" />
+      <workItem from="1705479276106" duration="390000" />
+      <workItem from="1705492193703" duration="307000" />
+      <workItem from="1705498056021" duration="628000" />
+      <workItem from="1705501041538" duration="586000" />
+      <workItem from="1705592069230" duration="3000" />
+      <workItem from="1705651801491" duration="9073000" />
+      <workItem from="1705740186888" duration="7205000" />
+      <workItem from="1705748076872" duration="836000" />
+      <workItem from="1705749232955" duration="57000" />
+      <workItem from="1705749301401" duration="8255000" />
+      <workItem from="1705766830761" duration="14000" />
+      <workItem from="1705766935041" duration="145000" />
+    </task>
+    <task id="LOCAL-00001" summary="edited files 09/01/2024&#10;&#10;- reward functions david &amp; nino&#10;- lstm nino&#10;- ppo and gae david &amp; nino">
+      <option name="closed" value="true" />
+      <created>1704817297864</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1704817297864</updated>
+    </task>
+    <task id="LOCAL-00002" summary="edited files 09/01/2024&#10;&#10;- reward functions david &amp; nino&#10;- lstm nino&#10;- ppo and gae david &amp; nino">
+      <option name="closed" value="true" />
+      <created>1704817324436</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1704817324436</updated>
+    </task>
+    <task id="LOCAL-00003" summary="x">
+      <option name="closed" value="true" />
+      <created>1705043574125</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1705043574125</updated>
+    </task>
+    <task id="LOCAL-00004" summary="n_Layers=5, &#10;epsilon-greedy und manche rewards weggelassen zum versuch">
+      <option name="closed" value="true" />
+      <created>1705071632553</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1705071632553</updated>
+    </task>
+    <task id="LOCAL-00005" summary="PPO angepasst (storage.py und rl_agent.py verändert!)">
+      <option name="closed" value="true" />
+      <created>1705144464019</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1705144464019</updated>
+    </task>
+    <task id="LOCAL-00006" summary="PPO angepasst (storage.py und rl_agent.py verändert!)">
+      <option name="closed" value="true" />
+      <created>1705164305269</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1705164305269</updated>
+    </task>
+    <task id="LOCAL-00007" summary="Änderungen Montag 15/01/2023">
+      <option name="closed" value="true" />
+      <created>1705408114039</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1705408114039</updated>
+    </task>
+    <task id="LOCAL-00008" summary="Änderungen:&#10;- rewards (angelehnt an Nino)&#10;- plots&#10;&#10;2024-01-20">
+      <option name="closed" value="true" />
+      <created>1705767000738</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1705767000738</updated>
+    </task>
+    <option name="localTasksCounter" value="9" />
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="edited files 09/01/2024&#10;&#10;- reward functions david &amp; nino&#10;- lstm nino&#10;- ppo and gae david &amp; nino" />
+    <MESSAGE value="x" />
+    <MESSAGE value="n_Layers=5, &#10;epsilon-greedy und manche rewards weggelassen zum versuch" />
+    <MESSAGE value="PPO angepasst (storage.py und rl_agent.py verändert!)" />
+    <MESSAGE value="Änderungen Montag 15/01/2023" />
+    <MESSAGE value="Änderungen:&#10;- rewards (angelehnt an Nino)&#10;- plots&#10;&#10;2024-01-20" />
+    <option name="LAST_COMMIT_MESSAGE" value="Änderungen:&#10;- rewards (angelehnt an Nino)&#10;- plots&#10;&#10;2024-01-20" />
+  </component>
+  <component name="com.intellij.coverage.CoverageDataManagerImpl">
+    <SUITE FILE_PATH="coverage/deeprl_cheetah$go_env.coverage" NAME="go_env Coverage Results" MODIFIED="1704876198618" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/RL_Project/env" />
+    <SUITE FILE_PATH="coverage/deeprl_cheetah$test.coverage" NAME="test Coverage Results" MODIFIED="1705409864692" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/RL_Project" />
+    <SUITE FILE_PATH="coverage/deeprl_cheetah$storage.coverage" NAME="storage Coverage Results" MODIFIED="1705145342349" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/RL_Project/rl_modules" />
+    <SUITE FILE_PATH="coverage/deeprl_cheetah$train.coverage" NAME="train Coverage Results" MODIFIED="1705765447110" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/RL_Project" />
+    <SUITE FILE_PATH="coverage/deeprl_cheetah$rl_agent.coverage" NAME="rl_agent Coverage Results" MODIFIED="1705658962917" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/RL_Project/rl_modules" />
+  </component>
+</project>
