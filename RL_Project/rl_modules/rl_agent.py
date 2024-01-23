@@ -98,6 +98,7 @@ class RLAgent(nn.Module):
             value_batch = self.actor_critic.evaluate(obs_batch)
             mu_batch = self.actor_critic.action_mean
             sigma_batch = self.actor_critic.action_std
+            entropy_batch = self.actor_critic.entropy
 
             # compute losses
             if ppo_eth:
@@ -138,7 +139,7 @@ class RLAgent(nn.Module):
                 else:
                     value_loss = (returns_batch - value_batch).pow(2).mean()
 
-                loss = surrogate_loss + self.value_loss_coef * value_loss #- self.entropy_coef * entropy_batch.mean() # TODO add entropy loss ?
+                loss = surrogate_loss + self.value_loss_coef * value_loss - self.entropy_coef * entropy_batch.mean() # TODO add entropy loss ?
 
                 # Gradient step
                 self.optimizer.zero_grad()
@@ -243,13 +244,13 @@ class RLAgent(nn.Module):
                 for info in infos:
                     key_values.append(info[key])
                 info_mean[key] = np.mean(key_values)
-            if False:
-                print("------ Rewards ------ ")
-                max_length = max(len(key) for key in info_mean.keys())
-                for key in info_mean.keys():
-                    print(key.ljust(max_length) + "\t : " + str(info_mean[key]))
-            else:
-                print(f"Total Reward: {info_mean['total_reward']:.2f}")
+            #if False:
+            print("------ Rewards ------ ")
+            max_length = max(len(key) for key in info_mean.keys())
+            for key in info_mean.keys():
+                print(key.ljust(max_length) + "\t : " + str(info_mean[key]))
+            #else:
+            print(f"Total Reward: {info_mean['total_reward']:.2f}")
 
             try:
                 mean_traverse = info_mean['traverse']

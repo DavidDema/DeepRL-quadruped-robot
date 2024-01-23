@@ -17,10 +17,10 @@ class GOEnv(MujocoEnv):
     class Cfg:
         class RewardScale:
             lin_vel = 15.0
-            living = -2.0 
+            living = -1.0
             healthy = 5.0
-            yaw_rate = -2.0
-            pitchroll_rate = -2.0
+            yaw_rate = -1.0
+            pitchroll_rate = -1.0
             pitchroll = -0.5
             joint_pos = -0.0 # -10.0
             orientation = -0.3
@@ -28,15 +28,18 @@ class GOEnv(MujocoEnv):
             z_pos = 1.0 # 2.0
             foot_slip = 1.0 # 0.3 
 
-            tracking_lin_vel = 0.0 # 1.0
-            tracking_ang_vel = 0.0 # 0.5
-            lin_vel_z = 0.0 # -2.0
-            ang_vel_xy = 0.0 # -0.05
+            tracking_lin_vel = 2.0 # 1.0
+            tracking_ang_vel = 0.5 # 0.5
+            lin_vel_z = -2.0 # -2.0
+            ang_vel_xy = -0.05 # -0.05
             torques = 0.0 # -0.00001
             dof_acc = 0.0 # -2.5e-7
             feet_air_time = 0.0 #  1.0
             collision = 0.0 # -1.0
             action_rate = 0.0 # -0.01
+
+            going_far_x = 2.0 #1.0
+            going_far_y = 1.0
             
             termination = -0.0
             dof_vel = -0.
@@ -362,6 +365,9 @@ class GOEnv(MujocoEnv):
         collision = self._reward_collision()
         action_rate = self._reward_action_rate()
 
+        going_far_x = self._reward_going_far_x()
+        going_far_y = self._reward_going_far_y()
+
         rewards = [
             healthy_reward        * self.cfg.reward_scale.healthy,
             track_vel_reward      * self.cfg.reward_scale.lin_vel, 
@@ -383,6 +389,9 @@ class GOEnv(MujocoEnv):
             feet_air_time           * self.cfg.reward_scale.feet_air_time,
             collision               * self.cfg.reward_scale.collision,
             action_rate             * self.cfg.reward_scale.action_rate,
+            #x-Direction
+            going_far_x             * self.cfg.reward_scale.going_far_x,
+            going_far_y             * self.cfg.reward_scale.going_far_y
         ]
 
         total_rewards = np.sum(rewards)
@@ -413,6 +422,8 @@ class GOEnv(MujocoEnv):
             'feet_slip': foot_slip_reward,
             'traverse': self.data.qpos[0],
             'height': self.data.qpos[2],
+            'going_Far_x': going_far_x,
+            'going_Far_y': going_far_y
         }
         if self.render_mode == "human":
             self.render()
