@@ -22,7 +22,7 @@ class GOEnv(MujocoEnv):
             yaw_rate = -2.0
             pitchroll_rate = -2.0
             pitchroll = -0.5
-            joint_pos = -0.0 # -10.0
+            joint_pos = 0.0 # -10.0
             orientation = -0.3
             z_vel = 1.0 # 2.0
             z_pos = 1.0 # 2.0
@@ -299,6 +299,23 @@ class GOEnv(MujocoEnv):
     def _reward_feet_air_time(self):
         # Reward long steps
         return 0.0
+    
+    def _reward_termination(self):
+        # Terminal reward / penalty
+        return self.terminated
+    
+    def _reward_stumble(self):
+        # Penalize feet hitting vertical surfaces
+        return 0.0
+        
+    def _reward_stand_still(self):
+        # Penalize motion at zero commands
+        return 0.0
+
+    def _reward_feet_contact_forces(self):
+        # penalize high contact forces
+        return 0.0
+
 
     # ----------------------------------------------------- #
 
@@ -339,50 +356,61 @@ class GOEnv(MujocoEnv):
         feet_vel = feet_pos / self.dt
         feet_cont = self.data.contact.geom2
 
-        track_vel_reward = self._reward_lin_vel() 
-        living_reward = self._reward_living(timestep=self.timestep, max_timesteps=self.max_timesteps)
-        healthy_reward = self._reward_healthy()
-        yaw_rate_reward = self._reward_yaw_rate() 
-        pitchroll_rate_reward = self._reward_pitch_roll_rate() 
-        pitchroll_reward = self._reward_pitch_roll()
-        joint_pos_reward = self._reward_joint_pose()
-        orient_reward = self._reward_yaw()
-        z_vel_reward = self._reward_z_vel()
-        z_pos_reward = self._reward_z_pos()
-        foot_slip_reward = self._reward_foot_slip(feet_pos, feet_vel, feet_cont, scaling_factor=0.3)
+        track_vel_reward = self._reward_lin_vel() * self.cfg.reward_scale.lin_vel 
+        living_reward = self._reward_living(timestep=self.timestep, max_timesteps=self.max_timesteps) * self.cfg.reward_scale.living
+        healthy_reward = self._reward_healthy() * self.cfg.reward_scale.healthy
+        yaw_rate_reward = self._reward_yaw_rate() * self.cfg.reward_scale.yaw_rate 
+        pitchroll_rate_reward = self._reward_pitch_roll_rate() * self.cfg.reward_scale.pitchroll_rate 
+        pitchroll_reward = self._reward_pitch_roll() * self.cfg.reward_scale.pitchroll
+        joint_pos_reward = self._reward_joint_pose() * self.cfg.reward_scale.joint_pos
+        orient_reward = self._reward_yaw() * self.cfg.reward_scale.orientation
+        z_vel_reward = self._reward_z_vel() * self.cfg.reward_scale.z_vel
+        z_pos_reward = self._reward_z_pos() * self.cfg.reward_scale.z_pos
+        foot_slip_reward = self._reward_foot_slip(feet_pos, feet_vel, feet_cont, scaling_factor=0.3) * self.cfg.reward_scale.foot_slip
         
         # ETH
-        tracking_lin_vel_reward = self._reward_tracking_lin_vel()
-        tracking_ang_vel_reward = self._reward_tracking_ang_vel()
-        lin_vel_z_reward = self._reward_base_height()
-        ang_vel_xy_reward = self._reward_ang_vel_xy()
-        torques = self._reward_torques()
-        dof_acc = self._reward_dof_acc()
-        feet_air_time = self._reward_feet_air_time()
-        collision = self._reward_collision()
-        action_rate = self._reward_action_rate()
+        tracking_lin_vel_reward = self._reward_tracking_lin_vel() * self.cfg.reward_scale.tracking_lin_vel
+        tracking_ang_vel_reward = self._reward_tracking_ang_vel() * self.cfg.reward_scale.tracking_ang_vel
+        lin_vel_z_reward = self._reward_lin_vel_z() * self.cfg.reward_scale.lin_vel_z
+        ang_vel_xy_reward = self._reward_ang_vel_xy() * self.cfg.reward_scale.ang_vel_xy
+        torques_reward = self._reward_torques() * self.cfg.reward_scale.torques
+        dof_acc_reward = self._reward_dof_acc() * self.cfg.reward_scale.dof_acc
+        feet_air_time_reward = self._reward_feet_air_time() * self.cfg.reward_scale.feet_air_time
+        collision_reward = self._reward_collision() * self.cfg.reward_scale.collision
+        action_rate_reward = self._reward_action_rate() * self.cfg.reward_scale.action_rate
+        termination_reward = self._reward_termination() * self.cfg.reward_scale.termination
+        dof_vel_reward = self._reward_dof_vel() * self.cfg.reward_scale.dof_vel
+        base_height_reward = self._reward_base_height() * self.cfg.reward_scale.base_height
+        feet_stumble_reward = self._reward_stumble() * self.cfg.reward_scale.feet_stumble
+        stand_still_reward = self._reward_stand_still() * self.cfg.reward_scale.stand_still
 
         rewards = [
-            healthy_reward        * self.cfg.reward_scale.healthy,
-            track_vel_reward      * self.cfg.reward_scale.lin_vel, 
-            living_reward         * self.cfg.reward_scale.living,
-            yaw_rate_reward       * self.cfg.reward_scale.yaw_rate,
-            pitchroll_reward      * self.cfg.reward_scale.pitchroll,
-            orient_reward         * self.cfg.reward_scale.orientation,
-            pitchroll_rate_reward * self.cfg.reward_scale.pitchroll_rate,
-            z_vel_reward          * self.cfg.reward_scale.z_vel,
-            z_pos_reward          * self.cfg.reward_scale.z_pos,
-            foot_slip_reward      * self.cfg.reward_scale.foot_slip,
+            healthy_reward,
+            track_vel_reward, 
+            living_reward,
+            yaw_rate_reward,
+            pitchroll_reward,
+            orient_reward,
+            joint_pos_reward,
+            pitchroll_rate_reward,
+            z_vel_reward,
+            z_pos_reward,
+            foot_slip_reward,
             # ETH
-            tracking_lin_vel_reward * self.cfg.reward_scale.tracking_lin_vel,
-            tracking_ang_vel_reward * self.cfg.reward_scale.tracking_ang_vel,
-            lin_vel_z_reward        * self.cfg.reward_scale.lin_vel_z,
-            ang_vel_xy_reward       * self.cfg.reward_scale.ang_vel_xy,
-            torques                 * self.cfg.reward_scale.torques,
-            dof_acc                 * self.cfg.reward_scale.dof_acc,
-            feet_air_time           * self.cfg.reward_scale.feet_air_time,
-            collision               * self.cfg.reward_scale.collision,
-            action_rate             * self.cfg.reward_scale.action_rate,
+            tracking_lin_vel_reward,
+            tracking_ang_vel_reward,
+            lin_vel_z_reward,
+            ang_vel_xy_reward,
+            torques_reward,
+            dof_acc_reward,
+            feet_air_time_reward,
+            collision_reward,
+            action_rate_reward,            
+            termination_reward,
+            dof_vel_reward,
+            base_height_reward,
+            feet_stumble_reward,
+            stand_still_reward,
         ]
 
         total_rewards = np.sum(rewards)
@@ -395,11 +423,11 @@ class GOEnv(MujocoEnv):
             'tracking_ang_vel_reward': tracking_ang_vel_reward,
             'lin_vel_z_reward': lin_vel_z_reward,
             'ang_vel_xy_reward': ang_vel_xy_reward,
-            'torques': torques,
-            'dof_acc': dof_acc,
-            'feet_air_time': feet_air_time,
-            'collision': collision,
-            'action_rate': action_rate,
+            'torques_reward': torques_reward,
+            'dof_acc_reward': dof_acc_reward,
+            'feet_air_time_reward': feet_air_time_reward,
+            'collision_reward': collision_reward,
+            'action_rate_reward': action_rate_reward,
             'joint_pos_reward': joint_pos_reward,
             'pitchroll_rate_reward': pitchroll_rate_reward,
             'orient_reward': orient_reward,
@@ -411,8 +439,13 @@ class GOEnv(MujocoEnv):
             'z_pos_reward': z_pos_reward,
             'z_vel_reward': z_vel_reward,
             'feet_slip': foot_slip_reward,
+            'termination_reward': termination_reward,
+            'dof_vel_reward': dof_vel_reward,
+            'base_height_reward': base_height_reward,
+            'feet_stumble_reward': feet_stumble_reward,
+            'stand_still_reward': stand_still_reward,
             'traverse': self.data.qpos[0],
-            'height': self.data.qpos[2],
+            'height': self.data.qpos[2],          
         }
         if self.render_mode == "human":
             self.render()
