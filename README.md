@@ -1,4 +1,5 @@
 # deepRL_cheetah
+with torque as SIM input (nino3 with action input)
 
 ## DONE:
 - implement GAE: as discribed in ActorCritic slides
