@@ -15,7 +15,7 @@ class RLAgent(nn.Module):
                  env: GOEnv,
                  storage: Storage,
                  actor_critic: ActorCritic,
-                 lr=0.0005,
+                 lr=0.001,
                  value_loss_coef=1.0,
                  num_batches=4,
                  num_epochs=5,
@@ -55,6 +55,8 @@ class RLAgent(nn.Module):
 
         self.use_clipped_value_loss = True
         self.clip_param = 0.2
+
+        self.max_grad_norm = 1.0
 
         self.use_exploration = False
 
@@ -98,6 +100,7 @@ class RLAgent(nn.Module):
             value_batch = self.actor_critic.evaluate(obs_batch)
             mu_batch = self.actor_critic.action_mean
             sigma_batch = self.actor_critic.action_std
+            entropy_batch = self.actor_critic.entropy
 
             # compute losses
             if ppo_eth:
@@ -138,12 +141,12 @@ class RLAgent(nn.Module):
                 else:
                     value_loss = (returns_batch - value_batch).pow(2).mean()
 
-                loss = surrogate_loss + self.value_loss_coef * value_loss #- self.entropy_coef * entropy_batch.mean() # TODO add entropy loss ?
+                loss = surrogate_loss + self.value_loss_coef * value_loss - self.entropy_coef * entropy_batch.mean() # TODO add entropy loss ?
 
                 # Gradient step
                 self.optimizer.zero_grad()
                 loss.backward()
-                #TODO: nn.utils.clip_grad_norm_(self.actor_critic.parameters(), self.max_grad_norm)
+                nn.utils.clip_grad_norm_(self.actor_critic.parameters(), self.max_grad_norm)
                 self.optimizer.step()
 
                 mean_value_loss += value_loss.item()
@@ -195,7 +198,7 @@ class RLAgent(nn.Module):
                     action = self.inference(obs_tensor)
             self.env.timestep = t-last_termination_timestep
             self.env.max_timesteps = self.storage.max_timesteps - last_termination_timestep
-            obs_next, reward, terminate, info = self.env.step(action*self.action_scale) # perform one step action
+            obs_next, reward, terminate, info = self.env.step(action) # perform one step action
             infos.append(info)
             if is_training:
                 self.store_data(obs, reward, terminate) # collect data to storage

@@ -16,38 +16,37 @@ class GOEnv(MujocoEnv):
 
     class Cfg:
         class RewardScale:
-            lin_vel = 15.0
-            living = -2.0 
-            healthy = 5.0
-            yaw_rate = -2.0
-            pitchroll_rate = -2.0
-            pitchroll = -0.5
-            joint_pos = 0.0 # -10.0
-            orientation = -0.3
-            z_vel = 1.0 # 2.0
-            z_pos = 1.0 # 2.0
-            foot_slip = 1.0 # 0.3 
+            lin_vel = 0.0
+            living = 0.0 
+            healthy = 0.0
+            yaw_rate = 0.0
+            pitchroll_rate = 0.0
+            pitchroll = 0.0
+            joint_pos = 0.0 
+            orientation = 0.0
+            z_vel = 0.0
+            z_pos = 0.0 
+            foot_slip = 0.0
 
-            tracking_lin_vel = 0.0 # 1.0
-            tracking_ang_vel = 0.0 # 0.5
-            lin_vel_z = 0.0 # -2.0
-            ang_vel_xy = 0.0 # -0.05
-            torques = 0.0 # -0.00001
-            dof_acc = 0.0 # -2.5e-7
-            feet_air_time = 0.0 #  1.0
-            collision = 0.0 # -1.0
-            action_rate = 0.0 # -0.01
-            
             termination = -0.0
+            tracking_lin_vel = 1.0
+            tracking_ang_vel = 0.5
+            lin_vel_z = -2.0
+            ang_vel_xy = -0.05
+            torques = -0.00001
             dof_vel = -0.
+            dof_acc = -2.5e-7
             base_height = -0. 
+            feet_air_time = 0.0 # 1.0 # not implemented!
+            collision = -1.0
             feet_stumble = -0.0 
+            action_rate = -0.01             
             stand_still = -0.
 
         class Control:
             control_type = 'P'
-            stiffness = 2.0 # 15 
-            damping = 0.5 # 1.5
+            stiffness = 10.0 # 15 
+            damping = 1.0 # 1.5
             action_scale = 0.5
         
         def __init__(self):
@@ -55,7 +54,7 @@ class GOEnv(MujocoEnv):
             self.reward_scale = self.RewardScale()
             self.control = self.Control()
             self.commands = [0.5, 0.0, 0.0] # x, y, yaw
-            self.tracking_sigma = 0.1
+            self.tracking_sigma = 0.25
             self.only_positive_rewards = False
 
 
@@ -96,9 +95,6 @@ class GOEnv(MujocoEnv):
 
         self.cfg = self.Cfg()
 
-        self.action = np.zeros(12)
-        self.last_action = np.zeros(12)
-
         self.base_pos = self.init_joints[:3]
         self.base_lin_vel = np.zeros(3)
         self.base_ang_vel = np.zeros(3)
@@ -111,17 +107,19 @@ class GOEnv(MujocoEnv):
         self.torques = np.zeros(12)
         self.last_base_pos = self.init_joints[:3]
         self.last_base_lin_vel = np.zeros(3)
-        self.last_feet_pos = np.zeros(3)
+        self.last_feet_pos = None
         self.last_base_orientation = np.zeros(3)
         self.last_dof_pos = self.init_joints[-12:]
         self.last_dof_vel = np.zeros(12)
         self.last_action = np.zeros(12)
         self.contact_forces = self.data.cfrc_ext
+        self.feet_contact = None
+        self.feet_vel = None
 
         self.p_gain = np.ones(self.action_dim) * self.cfg.control.stiffness
         self.d_gain = np.ones(self.action_dim) * self.cfg.control.damping
 
-        self.torque_limits = 10.0
+        self.torque_limits = 100.0
 
     @property
     def lower_limits(self):
@@ -226,20 +224,12 @@ class GOEnv(MujocoEnv):
         # reward joint positions similar to init position
         return np.linalg.norm(self.init_joints[7:] - self.dof_pos) ** 2 
 
-    def _reward_foot_slip(self, feet_pos, feet_vel, feet_cont, scaling_factor=1.0):
-        if feet_cont.any():
-            sum_velocity_squared = 0.0
-            velocity_squared = 0.0
-
-            for contact_index in feet_cont:
-                velocity_squared = np.sum(feet_vel[contact_index][:2] ** 2)
-                sum_velocity_squared += velocity_squared
-
-            reward_slip = -scaling_factor * velocity_squared
-        else:
-            reward_slip = 0.0
-
-        return np.exp(reward_slip)
+    def _reward_foot_slip(self):
+        reward = 0.0
+        if self.feet_contact.any():
+            for contact_index in self.feet_contact:
+                reward += np.sum(self.feet_vel[contact_index][:2] ** 2)
+        return reward
     
     # ----------------------------------------------------- #
     def _reward_lin_vel_z(self):
@@ -319,7 +309,7 @@ class GOEnv(MujocoEnv):
 
     # ----------------------------------------------------- #
 
-    def step(self, delta_q):
+    def step(self, action):
 
         self.last_base_pos = self.data.qpos[:3].copy()
         self.last_base_lin_vel = self.data.qvel[:3].copy()
@@ -328,33 +318,29 @@ class GOEnv(MujocoEnv):
         self.last_dof_pos = self.data.qpos[-12:].copy()
         self.last_dof_vel = self.data.qvel[-12:].copy()
         
-        self.action = delta_q + self.data.qpos[-12:]
-        self.action = np.clip(self.action, a_min=self.lower_limits, a_max=self.upper_limits)
+        self.last_action = self.action
+        self.action = np.clip(action, a_min=self.lower_limits, a_max=self.upper_limits)
 
-        if False:
-            torque = self.p_gain * delta_q - self.d_gain * self.data.qvel[-12:]
-            torque = np.clip(torque, a_min=self.lower_limits, a_max=self.upper_limits)
+        if True:
+            torque = self._compute_torques(self.action)
         else:
             torque = self.action
         self.do_simulation(torque, self.frame_skip)
 
         self.base_pos = self.data.qpos[:3].copy()
         self.base_lin_vel = self.data.qvel[:3].copy()
-        self.feet_pos = self.data.geom_xpos.copy()
+        self.feet_pos = self.data.geom_xpos.copy() # [[10,19,28,37]]
         self.base_orientation = self.base_rotation
         self.dof_pos = self.data.qpos[-12:].copy()
         self.dof_vel = self.data.qvel[-12:].copy()
-        # self.action = delta_q + self.data.qpos[-12:].copy()
-        # self.action = np.clip(self.action, a_min=self.lower_limits, a_max=self.upper_limits)
-        self.torques = self.data.qfrc_applied # self._compute_torques(self.action) # which torque ?
+        self.torques = self.data.qfrc_applied
         
         self.dof_acc = (self.last_dof_vel - self.dof_vel) / self.dt  
         self.base_ang_vel = (self.last_base_orientation - self.base_orientation) / self.dt 
         self.contact_forces = self.data.cfrc_ext
 
-        feet_pos = self.data.geom_xpos  # [[10,19,28,37]]
-        feet_vel = feet_pos / self.dt
-        feet_cont = self.data.contact.geom2
+        self.feet_vel = (self.last_feet_pos - self.feet_pos) / self.dt
+        self.feet_contact = self.data.contact.geom2
 
         track_vel_reward = self._reward_lin_vel() * self.cfg.reward_scale.lin_vel 
         living_reward = self._reward_living(timestep=self.timestep, max_timesteps=self.max_timesteps) * self.cfg.reward_scale.living
@@ -366,7 +352,7 @@ class GOEnv(MujocoEnv):
         orient_reward = self._reward_yaw() * self.cfg.reward_scale.orientation
         z_vel_reward = self._reward_z_vel() * self.cfg.reward_scale.z_vel
         z_pos_reward = self._reward_z_pos() * self.cfg.reward_scale.z_pos
-        foot_slip_reward = self._reward_foot_slip(feet_pos, feet_vel, feet_cont, scaling_factor=0.3) * self.cfg.reward_scale.foot_slip
+        foot_slip_reward = self._reward_foot_slip() * self.cfg.reward_scale.foot_slip
         
         # ETH
         tracking_lin_vel_reward = self._reward_tracking_lin_vel() * self.cfg.reward_scale.tracking_lin_vel
