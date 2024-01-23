@@ -58,6 +58,7 @@ class LSTM(nn.Module):
 
         return out
 
+
 class MLP(nn.Module):
     def __init__(self,
                  dim_in,
@@ -66,7 +67,7 @@ class MLP(nn.Module):
                  n_layers=2,
                  act=nn.ELU(),
                  output_act=None,
-                 lstm=True,
+                 lstm=False,
                  **kwargs):
         super().__init__()
         n_hidden = n_layers - 2

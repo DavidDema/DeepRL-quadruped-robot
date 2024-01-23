@@ -49,7 +49,7 @@ class ActorCritic(nn.Module):
         mean = self.actor(observations)
         self.distribution = Normal(mean, self.std)
 
-    def act(self, observations, exploration_prob, explore_exploit=True, **kwargs):
+    def act(self, observations, exploration_prob, explore_exploit=False, **kwargs):
         if explore_exploit:     
             self.update_distribution(observations)
             e = np.random.choice([0, 1], 1, p=[(1-exploration_prob), exploration_prob])[0]
@@ -58,6 +58,7 @@ class ActorCritic(nn.Module):
             else:
                 return self.act_inference(observations)
         else:
+            self.update_distribution(observations)
             return self.distribution.sample()
 
     def get_actions_log_prob(self, actions):

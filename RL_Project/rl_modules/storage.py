@@ -19,11 +19,14 @@ class Storage:
                  obs_dim,
                  action_dim,
                  max_timesteps,
-                 gamma=0.995,
-                 lmbda=0.96):
+                 gamma=0.99,
+                 lmbda=0.95):
         self.max_timesteps = max_timesteps
         self.gamma = gamma
         self.lmbda = lmbda
+
+        self.mu = np.zeros([self.max_timesteps, action_dim])
+        self.sigma = np.zeros([self.max_timesteps, action_dim])
 
         # create the buffer
         self.obs = np.zeros([self.max_timesteps, obs_dim])
@@ -48,12 +51,31 @@ class Storage:
         self.actions_log_prob[self.step] = transition.action_log_prob.copy()
         self.values[self.step] = transition.value.copy()
 
+        self.mu[self.step] = transition.action_mean.copy()
+        self.sigma[self.step] = transition.action_std.copy()
+
         self.step += 1
 
     def clear(self):
         self.step = 0
 
-    def compute_returns(self, last_values, gae=True):
+    def compute_returns(self, last_values):
+        advantage = 0
+        for step in reversed(range(self.max_timesteps)):
+            if step == self.max_timesteps - 1:
+                next_values = last_values
+            else:
+                next_values = self.values[step + 1]
+            next_is_not_terminal = 1.0 - self.dones[step]   #.float()
+            delta = self.rewards[step] + next_is_not_terminal * self.gamma * next_values - self.values[step]
+            advantage = delta + next_is_not_terminal * self.gamma * self.lmbda * advantage
+            self.returns[step] = advantage + self.values[step]
+
+        # Compute and normalize the advantages
+        self.advantages = self.returns - self.values
+        self.advantages = (self.advantages - self.advantages.mean()) / (self.advantages.std() + 1e-8)
+
+    def compute_returns2(self, last_values, gae=True):
         for step in reversed(range(self.max_timesteps)):
             self.advantages[step] = 0 
             if gae:
@@ -84,8 +106,12 @@ class Storage:
         obs = torch.from_numpy(self.obs).to(device).float()
         actions = torch.from_numpy(self.actions).to(device).float()
         values = torch.from_numpy(self.values).to(device).float()
+        returns = torch.from_numpy(self.returns).to(device).float()
         advantages = torch.from_numpy(self.advantages).to(device).float()
         actions_log_prob = torch.from_numpy(self.actions_log_prob).to(device).float()
+
+        mus = torch.from_numpy(self.mu).to(device).float()
+        sigmas = torch.from_numpy(self.sigma).to(device).float()
 
         for epoch in range(num_epochs):
             for i in range(num_batches):
@@ -93,9 +119,13 @@ class Storage:
                 end = (i + 1) * batch_size
                 batch_idx = indices[start:end]
 
-                obs_batch = obs[batch_idx]
+                obs_batch = obs[batch_idx] # = critic_observations
                 actions_batch = actions[batch_idx]
+                returns_batch = returns[batch_idx]
                 target_values_batch = values[batch_idx]
                 advantages_batch = advantages[batch_idx]
-                actions_log_prob_old_batch = actions_log_prob[batch_idx]
-                yield (obs_batch, actions_batch, target_values_batch, advantages_batch, actions_log_prob_old_batch)
+                old_actions_log_prob_batch = actions_log_prob[batch_idx]
+
+                old_mu_batch = mus[batch_idx]
+                old_sigma_batch = sigmas[batch_idx]
+                yield (obs_batch, actions_batch, target_values_batch, advantages_batch, old_actions_log_prob_batch, returns_batch, old_mu_batch, old_sigma_batch)
