@@ -286,8 +286,8 @@ class RLAgent(nn.Module):
 
         # Scaling
         scale_actor = 0.1
-        scale_critic = 10000
-        scale_reward = 10
+        scale_critic = 1
+        scale_reward = 1
 
         plt.clf()
         plt.plot(np.array(actor_losses)/scale_actor, label=f'actor (x{scale_actor})')
@@ -298,8 +298,8 @@ class RLAgent(nn.Module):
         plt.title("Actor/Critic Loss (" + str(it) + "/" + str(num_learning_iterations) + ")")
         plt.ylabel("Loss")
         plt.xlabel("Episodes")
-        plt.ylim([-1, 4]) # lock y-axis
-        #plt.grid(True)
+        # plt.ylim([-1, 4]) # lock y-axis
+        plt.grid(True)
         plt.legend()
         plt.savefig(os.path.join(save_dir, f'ac_loss.png'))
         plt.draw()

@@ -11,7 +11,7 @@ class GOEnv(MujocoEnv):
             "rgb_array",
             "depth_array",
         ],
-        "render_fps": 25,
+        "render_fps": 12,
     }
 
     class Cfg:
@@ -75,7 +75,7 @@ class GOEnv(MujocoEnv):
             low=-np.inf, high=np.inf, shape=(self.obs_dim,), dtype=np.float64
         )
         MujocoEnv.__init__(self,
-                           model_path=os.path.join(os.path.dirname(__file__), 'go/scene.xml'),
+                           model_path=os.path.join(os.path.dirname(__file__), 'go/go1_unitree.xml'),
                            frame_skip=frame_skip,
                            observation_space=observation_space,
                            **kwargs
@@ -119,7 +119,7 @@ class GOEnv(MujocoEnv):
         self.p_gain = np.ones(self.action_dim) * self.cfg.control.stiffness
         self.d_gain = np.ones(self.action_dim) * self.cfg.control.damping
 
-        self.torque_limits = 100.0
+        self.torque_limits = 10.0
 
     @property
     def lower_limits(self):
