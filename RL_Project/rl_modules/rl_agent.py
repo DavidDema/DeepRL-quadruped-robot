@@ -15,7 +15,7 @@ class RLAgent(nn.Module):
                  env: GOEnv,
                  storage: Storage,
                  actor_critic: ActorCritic,
-                 lr=0.001,
+                 lr=0.0005,
                  value_loss_coef=1.0,
                  num_batches=4,
                  num_epochs=5,
@@ -286,7 +286,7 @@ class RLAgent(nn.Module):
 
         # Scaling
         scale_actor = 0.1
-        scale_critic = 1
+        scale_critic = 10
         scale_reward = 1
 
         plt.clf()

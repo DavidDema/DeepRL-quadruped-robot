@@ -17,8 +17,8 @@ class GOEnv(MujocoEnv):
     class Cfg:
         class RewardScale:
             lin_vel = 0.0
-            living = 0.0 
-            healthy = 0.0
+            living = -1.0 
+            healthy = 1.0
             yaw_rate = 0.0
             pitchroll_rate = 0.0
             pitchroll = 0.0
@@ -29,11 +29,11 @@ class GOEnv(MujocoEnv):
             foot_slip = 0.0
 
             termination = -0.0
-            tracking_lin_vel = 1.0
-            tracking_ang_vel = 0.5
+            tracking_lin_vel = 10.0
+            tracking_ang_vel = 0.8
             lin_vel_z = -2.0
             ang_vel_xy = -0.05
-            torques = -0.00001
+            torques = -0.0002
             dof_vel = -0.
             dof_acc = -2.5e-7
             base_height = -0. 
@@ -43,10 +43,13 @@ class GOEnv(MujocoEnv):
             action_rate = -0.01             
             stand_still = -0.
 
+            smooth_action_1 = -2.5
+            smooth_action_2 = -1.5
+
         class Control:
             control_type = 'P'
-            stiffness = 10.0 # 15 
-            damping = 1.0 # 1.5
+            stiffness = 3.0 # 15 
+            damping = 0.2 # 1.5
             action_scale = 0.5
         
         def __init__(self):
@@ -115,11 +118,15 @@ class GOEnv(MujocoEnv):
         self.contact_forces = self.data.cfrc_ext
         self.feet_contact = None
         self.feet_vel = None
+        
+        self.qt = np.zeros(12)
+        self.qt1 = np.zeros(12)
+        self.qt2 = np.zeros(12)
 
         self.p_gain = np.ones(self.action_dim) * self.cfg.control.stiffness
         self.d_gain = np.ones(self.action_dim) * self.cfg.control.damping
 
-        self.torque_limits = 10.0
+        self.torque_limits = 100.0
 
     @property
     def lower_limits(self):
@@ -231,6 +238,9 @@ class GOEnv(MujocoEnv):
                 reward += np.sum(self.feet_vel[contact_index][:2] ** 2)
         return reward
     
+    def _reward_smooth_action(self, r1, r2):
+        return r1 * np.linalg.norm(self.qt - self.qt1) ** 2 + r2 * np.linalg.norm(self.qt - 2*self.qt1 + self.qt2) ** 2
+
     # ----------------------------------------------------- #
     def _reward_lin_vel_z(self):
         # Penalize z axis base linear velocity
@@ -353,6 +363,8 @@ class GOEnv(MujocoEnv):
         z_vel_reward = self._reward_z_vel() * self.cfg.reward_scale.z_vel
         z_pos_reward = self._reward_z_pos() * self.cfg.reward_scale.z_pos
         foot_slip_reward = self._reward_foot_slip() * self.cfg.reward_scale.foot_slip
+
+        smooth_action_reward = self._reward_smooth_action(self.cfg.reward_scale.smooth_action_1, self.cfg.reward_scale.smooth_action_2)
         
         # ETH
         tracking_lin_vel_reward = self._reward_tracking_lin_vel() * self.cfg.reward_scale.tracking_lin_vel
@@ -397,6 +409,7 @@ class GOEnv(MujocoEnv):
             base_height_reward,
             feet_stumble_reward,
             stand_still_reward,
+            smooth_action_reward
         ]
 
         total_rewards = np.sum(rewards)
@@ -430,6 +443,7 @@ class GOEnv(MujocoEnv):
             'base_height_reward': base_height_reward,
             'feet_stumble_reward': feet_stumble_reward,
             'stand_still_reward': stand_still_reward,
+            'smooth_action_reward': smooth_action_reward,
             'traverse': self.data.qpos[0],
             'height': self.data.qpos[2],          
         }
@@ -474,8 +488,11 @@ class GOEnv(MujocoEnv):
         #pd controller
         actions_scaled = actions * self.cfg.control.action_scale
         control_type = self.cfg.control.control_type
+        self.qt2 = self.qt1
+        self.qt1 = self.qt
+        self.qt = actions_scaled + self.init_joints[-12:]
         if control_type=="P":
-            torques = self.p_gain*(actions_scaled + self.init_joints[-12:] - self.dof_pos) - self.d_gain*self.dof_vel
+            torques = self.p_gain*(self.qt - self.dof_pos) - self.d_gain*self.dof_vel
         elif control_type=="V":
             torques = self.p_gain*(actions_scaled - self.dof_vel) - self.d_gain*(self.dof_vel - self.last_dof_vel)/self.sim_params.dt
         elif control_type=="T":
