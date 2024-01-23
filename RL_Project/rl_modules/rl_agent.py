@@ -246,11 +246,12 @@ class RLAgent(nn.Module):
                 for info in infos:
                     key_values.append(info[key])
                 info_mean[key] = np.mean(key_values)
-            if False:
+            if True:
                 print("------ Rewards ------ ")
                 max_length = max(len(key) for key in info_mean.keys())
                 for key in info_mean.keys():
-                    print(key.ljust(max_length) + "\t : " + str(info_mean[key]))
+                    if info_mean[key] != 0.0:
+                        print(key.ljust(max_length) + "\t : " + str(info_mean[key]))
             else:
                 print(f"Total Reward: {info_mean['total_reward']:.2f}")
 
