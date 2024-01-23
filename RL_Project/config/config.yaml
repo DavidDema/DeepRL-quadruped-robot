@@ -1,0 +1,96 @@
+# ----------------------
+runner:
+  experiment_name: walking_experiment
+  run_name: ''
+  render_human: false
+  max_iterations: 1500 # iterations per training
+  max_timesteps: 2000 # timestep per episode
+  save_interval: 50 # save every x iteration
+  plot_interval: 10 # plot every x iteration
+  save_data: true # save recorded data in pickle-file
+  save_model: true # save model in .pt file
+  first_save_iter: 80
+
+# ----------------------
+env:
+  control:
+    use_torque: false
+    base_height_target: 0.34 # in m ?
+    control_type: P # TODO
+    damping: 0.01
+    only_positive_rewards: false
+    stiffness: 1.0
+    tracking_sigma: 0.1
+    vel_commands:
+    - 0.5 # x
+    - 0.0 # y
+    - 0.0 # yaw ?
+
+  exclude_current_positions_from_observations: false
+  frame_skip: 40
+  healthy_z_range:
+  - 0.15
+  - 0.5
+  unhealthy_angle: 40 # 40
+  terminate_when_unhealthy: true
+  reset_noise_scale: 0.01
+
+  rewards:
+    healthy: 5.0
+    lin_vel: 15.0
+    living: -0.0 # -2.0
+    living_pos: 2.0
+    yaw_rate: -1.0
+    roll_rate: -2.0
+    pitch_rate: -2.0
+    yaw: -0.3
+    roll: -0.5
+    pitch: -2.0
+    joint_pos: -0.3
+    z_pos: 1.0 # 1.0
+    z_vel: 1.0 # 1.0
+    foot_slip: 1.0
+    two_feet: 0.0
+
+    # ETH
+    tracking_ang_vel: 0.0
+    tracking_lin_vel: 0.0
+    lin_vel_z: 0.0
+    ang_vel_xy: 0.0
+    torques: 0.0
+    dof_acc: 0.0
+    feet_air_time: 0.0
+    collision: 0.0
+    action_rate: 0.0
+    # not yet used
+    base_height: -0.0
+    dof_vel: -0.0
+    feet_stumble: -0.0
+    stand_still: -0.0
+    termination: -0.0
+
+# ----------------------
+algorithm:
+  action_scale: 1.0 #0.5
+  clip_param: 0.2
+  desired_kl: 0.01
+  entropy_coef: 0.01
+  gamma: 0.99 # GAE
+  lam: 0.95 # GAE
+  learning_rate: 0.0005
+  max_grad_norm: 1.0
+  num_batches: 4
+  num_epochs: 5
+  schedule: adaptive # or fixed
+  use_clipped_value_loss: true
+  value_loss_coef: 1.0
+  use_ppo: true
+
+# ----------------------
+ac:
+  activation: elu # no other activation function implemented
+  actor_hidden_dim: 512
+  actor_n_layers: 3
+  critic_hidden_dim: 512
+  critic_n_layers: 3
+  init_std: 1.0

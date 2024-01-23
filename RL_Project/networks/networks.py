@@ -71,11 +71,13 @@ class MLP(nn.Module):
                  dropout=True,
                  **kwargs):
         super().__init__()
+
         dropout_layer = nn.Dropout(p=0.7)
 
         n_hidden = n_layers - 2
         input_layer = Dense(dim_in=dim_in, dim_out=dim_hidden, activation=act, **kwargs)
         layers = [input_layer]
+        #layers.append(dropout_layer)
         if lstm:
             hidden_layer = LSTM(dim_hidden, dim_hidden, n_layers, dim_hidden)
             layers.append(hidden_layer)
@@ -84,7 +86,6 @@ class MLP(nn.Module):
                 #layers.append(dropout_layer)
                 layers.append(Dense(dim_in=dim_hidden, dim_out=dim_hidden, activation=act, **kwargs))
 
-        #layers.append(dropout_layer)
         output_layer = Dense(dim_in=dim_hidden, dim_out=dim_out, activation=output_act, **kwargs)
         layers.append(output_layer)
 

@@ -8,29 +8,31 @@ class ActorCritic(nn.Module):
     def __init__(self,
                  state_dim,
                  action_dim,
-                 hidden_dim=512,
-                 n_layers=3,
-                 init_std=1.0
+                 cfg
                  ):
         super().__init__()
+
+        self.ac_cfg = cfg['ac']
+
         self.actor = MLP(dim_in=state_dim,
-                         dim_hidden=hidden_dim,
+                         dim_hidden=self.ac_cfg['actor_hidden_dim'],
                          dim_out=action_dim,
-                         n_layers=n_layers,
+                         n_layers=self.ac_cfg['actor_n_layers'],
                          act=nn.ELU(),
                          output_act=nn.Tanh(),
                          using_norm=False)
 
         self.critic = MLP(dim_in=state_dim,
-                          dim_hidden=hidden_dim,
+                          dim_hidden=self.ac_cfg['critic_hidden_dim'],
                           dim_out=1,
-                          n_layers=n_layers,
+                          n_layers=self.ac_cfg['critic_n_layers'],
                           act=nn.ELU(),
                           output_act=None,
                           using_norm=False)
 
+
         # Action distribution
-        self.std = nn.Parameter(init_std * torch.ones(action_dim))
+        self.std = nn.Parameter(self.ac_cfg['init_std'] * torch.ones(action_dim))
         self.distribution = None
 
     @property
@@ -49,17 +51,9 @@ class ActorCritic(nn.Module):
         mean = self.actor(observations)
         self.distribution = Normal(mean, self.std)
 
-    def act(self, observations, exploration_prob, explore_exploit=False, **kwargs):
-        if explore_exploit:     
-            self.update_distribution(observations)
-            e = np.random.choice([0, 1], 1, p=[(1-exploration_prob), exploration_prob])[0]
-            if e:
-                return self.distribution.sample()
-            else:
-                return self.act_inference(observations)
-        else:
-            self.update_distribution(observations)
-            return self.distribution.sample()
+    def act(self, observations, **kwargs):
+        self.update_distribution(observations)
+        return self.distribution.sample()
 
     def get_actions_log_prob(self, actions):
         return self.distribution.log_prob(actions).sum(dim=-1)

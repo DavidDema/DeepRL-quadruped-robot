@@ -15,14 +15,22 @@ class GOEnv(MujocoEnv):
     }
 
     def __init__(self,
-                 healthy_z_range=(0.15, 0.5),
-                 reset_noise_scale=1e-2,
-                 terminate_when_unhealthy=True,
-                 exclude_current_positions_from_observation=False,
-                 frame_skip=40,
+                 cfg,
                  **kwargs,
                  ):
-        if exclude_current_positions_from_observation:
+        self.env_cfg = cfg['env']
+        self.rew_cfg = self.env_cfg['rewards']
+        self.control_cfg = self.env_cfg['control']
+
+        self._reset_noise_scale = self.env_cfg['reset_noise_scale']
+        self._healthy_z_range = self.env_cfg['healthy_z_range']
+        self._terminate_when_unhealthy = self.env_cfg['terminate_when_unhealthy']
+        self._exclude_current_positions_from_observation = self.env_cfg['exclude_current_positions_from_observations']
+
+        self.unhealthy_angle = self.env_cfg['unhealthy_angle']
+        self.frame_skip = self.env_cfg['frame_skip']
+
+        if self._exclude_current_positions_from_observation:
             self.obs_dim = 17 + 18
         else:
             self.obs_dim = 19 + 18
@@ -30,42 +38,75 @@ class GOEnv(MujocoEnv):
         observation_space = Box(
             low=-np.inf, high=np.inf, shape=(self.obs_dim,), dtype=np.float64
         )
+
+        self.use_torque = self.control_cfg['use_torque']
+        if self.use_torque:
+            scene = 'go/scene_torque.xml'
+        else:
+            scene = 'go/scene.xml'
+
         MujocoEnv.__init__(self,
-                           model_path=os.path.join(os.path.dirname(__file__), 'go/scene.xml'),
-                           frame_skip=frame_skip,
+                           model_path=os.path.join(os.path.dirname(__file__), scene),
+                           frame_skip=self.frame_skip,
                            observation_space=observation_space,
                            **kwargs
                            )
+
         self.action_dim = 12
         self.action_space = Box(
             low=self.lower_limits, high=self.upper_limits, shape=(self.action_dim,), dtype=np.float64
         )
-
-        self._reset_noise_scale = reset_noise_scale
-        self._healthy_z_range = healthy_z_range
-        self._terminate_when_unhealthy = terminate_when_unhealthy
-        self._exclude_current_positions_from_observation = exclude_current_positions_from_observation
-
+        # TODO
         self.timestep = 0
         self.max_timesteps = 1
+
+        self.only_positive_rewards = self.control_cfg['only_positive_rewards'] # TODO
+        self.tracking_sigma = self.control_cfg['tracking_sigma']
+
+        #self.use_torque = self.env_cfg['use_torque']
+
+        self.control_type = self.control_cfg['control_type']
+        self.vel_commands = self.control_cfg['vel_commands']
+        self.base_height_target = self.control_cfg['base_height_target']
+
+        self.base_pos = self.init_joints[:3]
+        self.base_lin_vel = np.zeros(3)
+        self.base_ang_vel = np.zeros(3)
+        self.feet_pos = None
+        self.base_orientation = np.zeros(3)
+        self.dof_pos = self.init_joints[-12:]
+        self.dof_vel = np.zeros(12)
+        self.dof_acc = np.zeros(12)
+        self.action = np.zeros(12)
+        self.torques = np.zeros(12)
+        self.last_base_pos = self.init_joints[:3]
+        self.last_base_lin_vel = np.zeros(3)
+        self.last_feet_pos = np.zeros(3)
+        self.last_base_orientation = np.zeros(3)
+        self.last_dof_pos = self.init_joints[-12:]
+        self.last_dof_vel = np.zeros(12)
+        self.last_action = np.zeros(12)
+        self.contact_forces = self.data.cfrc_ext
+
+        self.p_gain = np.ones(self.action_dim) * self.control_cfg['stiffness']
+        self.d_gain = np.ones(self.action_dim) * self.control_cfg['damping']
+
+        self.torque_limits = 10.0
 
     @property
     def lower_limits(self):
         # Limits der einzelnen Gelenke [oben rechts-links, oben vorne-hinten, unten vorne-hinten ]
         # return np.array([-0.863, -0.686, -2.818]*4) #(Anfangsdaten)
-        # return np.array([-0.00, -0.5, -1.00]*4)
         return np.array([-0.25, -0.8, -1.318] * 4)
 
     @property
     def upper_limits(self):
         # return np.array([0.863, 4.501, -0.888]*4) #(Anfangsdaten)
-        # return np.array([0.00, 1.0, 0.00]*4)
         return np.array([0.25, 1.8, -0.888] * 4)
 
     @property
     def init_joints(self):
         # base position (x, y, z), base orientation (quaternion), 4x leg position (3 joints)
-        # return np.array([0, 0, 0.37, 1, 0, 0, 0] + [0, 0.7, -1.4]*4)
         return np.array([0, 0, 0.37, 1, 0, 0, 0] + [0, 0.7, -1.4] * 4)
 
     @property
@@ -92,12 +133,11 @@ class GOEnv(MujocoEnv):
         is_healthy_z = min_z < self.data.qpos[2] < max_z
 
         # convert orientation from radiant to degree
-        orientation = 360 * np.array(self.base_rotation) / (2 * np.pi)
+        orientation = 180 * np.array(self.base_rotation) / np.pi
 
         # Angles over "unhealthy_angle" degree are unhealthy
-        unhealthy_angle = 40
-        is_healthy_pitch = np.abs(orientation[0]) < unhealthy_angle
-        is_healthy_roll = np.abs(orientation[1]) < unhealthy_angle
+        is_healthy_pitch = np.abs(orientation[1]) < self.unhealthy_angle
+        is_healthy_roll = np.abs(orientation[0]) < self.unhealthy_angle
 
         is_healthy = is_healthy_z and is_healthy_pitch and is_healthy_roll
 
@@ -123,61 +163,47 @@ class GOEnv(MujocoEnv):
     def _reward_healthy(self, scaling_factor=1.0):
         return scaling_factor * (self.is_healthy - 1)
 
-    def _reward_living(self, timestep=0, max_timesteps=1, scaling_factor=2.0, positive=True):
-        """Normalized living reward.
-        '-1' at begin and '+0' if lived long time (until the end of episode)"""
-        if positive:
-            #return scaling_factor * (1 - ((max_timesteps - timestep) / max_timesteps) ** 2)
-            return scaling_factor * np.exp(-2.0 * ((max_timesteps - timestep) / max_timesteps))
-        else:
-            return -scaling_factor * (((max_timesteps - timestep) / max_timesteps) ** 2)
+    def _reward_living(self):
+        k = 1.5
+        return (k*(self.max_timesteps - self.timestep) / self.max_timesteps) ** 2
 
-    def _reward_lin_vel(self, before_pos, after_pos, scaling_factor=10.0):
-        # target_vel = np.array([0.5, 0, 0]) (Ausgangswerte)
-        target_vel = np.array([0.3, 0, 0])
-        lin_vel = (after_pos - before_pos) / self.dt
-        return scaling_factor * np.exp(
-            -np.linalg.norm((target_vel - lin_vel) ** 2))  ## **2 von mir hinzugefügt (Piet), nature Paper;
+    def _reward_living_pos(self):
+        return (self.timestep / self.max_timesteps) ** 2
 
-    def _reward_z_vel(self, before_pos, after_pos,
-                      scaling_factor=1.0):  ##(YAN)## should be very small, in total not so important, velocity is a big value
+    def _reward_lin_vel(self):
+        return np.exp(-np.linalg.norm((self.vel_commands - self.base_lin_vel) ** 2))
+
+    def _reward_z_vel(self):
+        return np.exp(-self.base_lin_vel[2] ** 2) # **2
+
+    def _reward_z_pos(self):
         # penalize movement in z direction
-        z_vel = np.abs((after_pos[2] - before_pos[2])) / self.dt
-        # return -scaling_factor * z_vel**2
-        return -scaling_factor * z_vel ** 2
+        return np.exp(-np.abs(self.base_pos[2] - self.base_height_target) ** 2) # **2
 
-    def _reward_z_pos(self, after_pos, scaling_factor=10.0):
-        # penalize movement in z direction
-        # dz = after_pos[2]-self.init_joints[2] ##(YAN)## init.joints lower to 0.5* oder kleiner!
-        dz = after_pos[2] - 0.5 * self.init_joints[2]
-        # return -scaling_factor * dz**2
-        return -scaling_factor * dz ** 2
+    def _reward_yaw(self):
+        return np.abs(self.base_orientation[2]) ** 2
 
-    def _reward_pitch_roll(self, orientation, scaling_factor=10.0):
-        # penalty for non-flat base orientation
-        pitch_penalty = np.abs(orientation[0])  # pitch
-        roll_penalty = np.abs(orientation[1])  # roll
-        return -scaling_factor * (pitch_penalty ** 2 + roll_penalty ** 2)
+    def _reward_pitch(self):
+        return np.abs(self.base_orientation[1]) ** 2
 
-    def _reward_yaw(self, yaw, before_pos, after_pos, scaling_factor=10.0):
-        # reward movement in forward direction
-        direction = (after_pos[:2] - before_pos[:2])
-        target_yaw = np.arctan2(direction[1], direction[0])
-        return -scaling_factor * np.linalg.norm(yaw - target_yaw)
+    def _reward_roll(self):
+        return np.abs(self.base_orientation[0]) ** 2
 
-    def _reward_yaw_rate(self, before_orientation, after_orientation, scaling_factor=10.0):
+    def _reward_yaw_rate(self):
         # penalty for high yaw rate
-        acceleration = np.abs((after_orientation[2] - before_orientation[2]) / self.dt)
-        return -scaling_factor * acceleration
+        return np.abs(self.base_ang_vel[2])
 
-    def _reward_pitch_roll_rate(self, before_orientation, after_orientation, scaling_factor=10.0):
-        # penalty for high pitch and roll rate
-        acceleration = np.abs((after_orientation[:2] - before_orientation[:2]) / self.dt)
-        return -scaling_factor * acceleration.mean()
+    def _reward_pitch_rate(self):
+        # penalty for high pitch rate
+        return np.abs(self.base_ang_vel[1])
 
-    def _reward_joint_pose(self, current_joints, init_joints, scaling_factor=10.0):
+    def _reward_roll_rate(self):
+        # penalty for high roll rate
+        return np.abs(self.base_ang_vel[0])
+
+    def _reward_joint_pose(self):
         # reward joint positions similar to init position
-        return -scaling_factor * np.linalg.norm(init_joints - current_joints) ** 2  ## auch hier **2 Piet hinzugefügt
+        return np.linalg.norm(self.init_joints[7:] - self.dof_pos) ** 2
 
     def _reward_foot_slip(self, feet_pos, feet_vel, feet_cont, scaling_factor=1.0):  ##(YAN)## sehr viel kleiner machen
         if feet_cont.any():
@@ -209,65 +235,167 @@ class GOEnv(MujocoEnv):
         return reward_two_feet
     '''
 
+    # ----------------------------------------------------- #
+    def _reward_lin_vel_z(self):
+        # Penalize z axis base linear velocity
+        return np.square(self.base_lin_vel[2])
+
+    def _reward_torques(self):
+        # Penalize torques
+        return np.sum(np.square(self.torques))
+
+    def _reward_dof_acc(self):
+        # Penalize dof accelerations
+        return np.sum(np.square(self.dof_acc))
+
+    def _reward_action_rate(self):
+        # Penalize changes in actions
+        return np.sum(np.square(self.last_action - self.action))
+
+    def _reward_tracking_lin_vel(self):
+        # Tracking of linear velocity commands (xy axes)
+        lin_vel_error = np.linalg.norm(self.vel_commands[:2] - self.base_lin_vel[:2])
+        return np.exp(-lin_vel_error / self.tracking_sigma)
+
+    def _reward_tracking_ang_vel(self):
+        # Tracking of angular velocity commands (yaw)
+        ang_vel_error = np.linalg.norm(self.vel_commands[2] - self.base_ang_vel[2])
+        return np.exp(-ang_vel_error / self.tracking_sigma)
+
+    def _reward_collision(self):
+        # Penalize collisions on selected bodies
+        return np.sum(1. * (np.linalg.norm(self.contact_forces) > 0.1))
+
+    def _reward_orientation(self):
+        # Penalize non flat base orientation
+        return np.sum(np.square(self.base_orientation[:2]))
+
+    def _reward_base_height(self):
+        # Penalize base height away from target
+        return np.square(self.base_pos[2] - self.base_height_target)
+
+    def _reward_going_far_x(self):
+        reward_x = self.data.qpos[0]
+        return reward_x
+
+    def _reward_going_far_y(self):
+        reward_y = self.data.qpos[1]
+        return -np.abs(reward_y)
+
+    def _reward_ang_vel_xy(self):
+        # Penalize non flat base orientation
+        return np.square(self.base_ang_vel[2])
+
+    def _reward_dof_vel(self):
+        # Penalize dof velocities
+        return np.sum(np.square(self.dof_vel))
+
+    def _reward_feet_air_time(self):
+        # Reward long steps
+        return 0.0
+
+    # ----------------------------------------------------- #
+
     def step(self, delta_q):
-        a = 2.0 * np.ones((12,))
-        b = 0.5 * np.ones((12,))
-        torque = a * delta_q - b * self.data.qvel[-12:]
-        action = torque
 
-        #action = delta_q + self.data.qpos[-12:]  ###(YAN)### hier auf jedenfall noch den Torque berechnen
-        action = np.clip(action, a_min=self.lower_limits, a_max=self.upper_limits)
+        self.last_base_pos = self.data.qpos[:3].copy()
+        self.last_base_lin_vel = self.data.qvel[:3].copy()
+        self.last_feet_pos = self.data.geom_xpos.copy()
+        self.last_base_orientation = self.base_rotation
+        self.last_dof_pos = self.data.qpos[-12:].copy()
+        self.last_dof_vel = self.data.qvel[-12:].copy()
 
-        before_pos = self.data.qpos[:3].copy()
-        before_vel = self.data.qvel[:3].copy()
-        before_orientation = self.base_rotation
-        self.do_simulation(action, self.frame_skip)
-        after_pos = self.data.qpos[:3].copy()
-        after_vel = self.data.qvel[:3].copy()
-        after_orientation = self.base_rotation
-        after_yaw = after_orientation[2]
-        after_joints = self.data.qpos[7:]
+        action = delta_q + self.data.qpos[-12:]
+        self.action = np.clip(action, a_min=self.lower_limits, a_max=self.upper_limits)
 
-        # Piet
+        if self.use_torque:
+            torque = self.p_gain * delta_q - self.d_gain * self.data.qvel[-12:]
+            torque = np.clip(torque, a_min=self.lower_limits, a_max=self.upper_limits)
+        else:
+            torque = self.action
+        self.do_simulation(torque, self.frame_skip)
+
+        self.base_pos = self.data.qpos[:3].copy()
+        self.base_lin_vel = self.data.qvel[:3].copy()
+        self.feet_pos = self.data.geom_xpos.copy()
+        self.base_orientation = self.base_rotation
+        self.dof_pos = self.data.qpos[-12:].copy()
+        self.dof_vel = self.data.qvel[-12:].copy()
+        self.torques = self.data.qfrc_applied  # self._compute_torques(self.action) # which torque ?
+
+        self.dof_acc = (self.last_dof_vel - self.dof_vel) / self.dt
+        self.base_ang_vel = (self.last_base_orientation - self.base_orientation) / self.dt
+        self.contact_forces = self.data.cfrc_ext
+
         feet_pos = self.data.geom_xpos  # [[10,19,28,37]]
         feet_vel = feet_pos / self.dt
         feet_cont = self.data.contact.geom2
 
-        track_vel_reward = self._reward_lin_vel(before_pos, after_pos,
-                                                scaling_factor=12.0)  # 1.5; fkt 0.5 ##(YAN)## should be the biggest
-        living_reward = self._reward_living(timestep=self.timestep, max_timesteps=self.max_timesteps,
-                                            scaling_factor=0.2, positive=True)  # 3.5; fkt 5
-        # living_reward = 0
+        track_vel_reward = self._reward_lin_vel()
+        living_reward = self._reward_living()
+        living_pos_reward = self._reward_living_pos()
+        healthy_reward = self._reward_healthy()
 
-        healthy_reward = self._reward_healthy(
-            scaling_factor=5.0)  # 1.0; fkt 15 ##(YAN)##increase, damit er nicht einfach vorne über fällt!
-        yaw_rate_reward = self._reward_yaw_rate(before_orientation, after_orientation,
-                                                scaling_factor=2.0)  # 0.8; fkt 0.2
-        pitchroll_rate_reward = self._reward_pitch_roll_rate(before_orientation, after_orientation,
-                                                             scaling_factor=1.0)  # 0.05; fkt 0.2
-        pitchroll_reward = self._reward_pitch_roll(after_orientation, scaling_factor=5.0)  # 5.0; fkt 2.0
-        joint_pos_reward = self._reward_joint_pose(after_joints, self.init_joints[7:],
-                                                   scaling_factor=0.3)  # 0.3; fkt 0.3
-        orient_reward = self._reward_yaw(after_yaw, before_pos, after_pos, scaling_factor=0.3)  # 0.1; fkt 0.1
-        z_vel_reward = self._reward_z_vel(before_pos=before_pos, after_pos=after_pos,
-                                          scaling_factor=2.0)  # 2.0; fkt 2.0
-        z_pos_reward = self._reward_z_pos(after_pos=after_pos, scaling_factor=1.0)  # 2.0; fkt 2.0
-        foot_slip_reward = self._reward_foot_slip(feet_pos, feet_vel, feet_cont, scaling_factor=0.3)  # fkt 5.0
-        # two_feet_reward = self._reward_two_feet(feet_cont, scaling_factor = 2.0) # fkt 5.0 ##(YAN)## should work without, just optional
-        total_rewards = track_vel_reward + living_reward + (yaw_rate_reward + pitchroll_reward + \
-                                                            orient_reward + pitchroll_rate_reward + z_vel_reward + z_pos_reward + \
-                                                            foot_slip_reward)
+        yaw_rate_reward = self._reward_yaw_rate()
+        pitch_rate_reward = self._reward_pitch_rate()
+        roll_rate_reward = self._reward_roll_rate()
+        yaw_reward = self._reward_yaw()
+        pitch_reward = self._reward_pitch()
+        roll_reward = self._reward_roll()
 
-        # total_rewards = track_vel_reward + living_reward + (foot_slip_reward + two_feet_reward + z_pos_reward)
+        joint_pos_reward = self._reward_joint_pose()
+        z_vel_reward = self._reward_z_vel()
+        z_pos_reward = self._reward_z_pos()
+        foot_slip_reward = self._reward_foot_slip(feet_pos, feet_vel, feet_cont)
+        two_feet_reward = 0 # TODO
+
+        # ETH
+        # tracking_lin_vel_reward = self._reward_tracking_lin_vel()
+        # tracking_ang_vel_reward = self._reward_tracking_ang_vel()
+        # lin_vel_z_reward = self._reward_base_height()
+        # ang_vel_xy_reward = self._reward_ang_vel_xy()
+        # torques = self._reward_torques()
+        # dof_acc = self._reward_dof_acc()
+        # feet_air_time = self._reward_feet_air_time()
+        # collision = self._reward_collision()
+        # action_rate = self._reward_action_rate()
+
+        rewards = [
+            healthy_reward * self.rew_cfg['healthy'],       # 5.0
+            track_vel_reward * self.rew_cfg['lin_vel'],     # 15.0
+            living_reward * self.rew_cfg['living'],         # -2.0
+            living_pos_reward * self.rew_cfg['living_pos'], # 2.0
+            yaw_rate_reward * self.rew_cfg['yaw_rate'],     # -2.0
+            pitch_rate_reward * self.rew_cfg['pitch_rate'], # -2.0
+            roll_rate_reward * self.rew_cfg['roll_rate'],   # -2.0
+            yaw_reward * self.rew_cfg['yaw'],               # -0.3
+            pitch_reward * self.rew_cfg['pitch'],           # -0.5
+            roll_reward * self.rew_cfg['roll'],             # -0.5
+            joint_pos_reward * self.rew_cfg['joint_pos'],   # -0.3
+            z_vel_reward * self.rew_cfg['z_vel'],           # 2.0
+            z_pos_reward * self.rew_cfg['z_pos'],           # 2.0
+            foot_slip_reward * self.rew_cfg['foot_slip'],   # 0.3
+            two_feet_reward * self.rew_cfg['two_feet'],     # 0.0
+            # ETH
+            # tracking_lin_vel_reward * self.rew_cfg['tracking_lin_vel'],
+            # tracking_ang_vel_reward * self.rew_cfg['tracking_ang_vel'],
+            # lin_vel_z_reward * self.rew_cfg['lin_vel_z'],
+            # ang_vel_xy_reward * self.rew_cfg['ang_vel_xy'],
+            # torques * self.rew_cfg['torques'],
+            # dof_acc * self.rew_cfg['dof_acc'],
+            # feet_air_time * self.rew_cfg['feet_air_time'],
+            # collision * self.rew_cfg['collision'],
+            # action_rate * self.rew_cfg['action_rate'],
+        ]
+
+        total_rewards = np.sum(rewards)
 
         terminate = self.terminated
         observation = self._get_obs()
         info = {
             'total_reward': total_rewards,
             'joint_pos_reward': joint_pos_reward,
-            'pitchroll_rate_reward': pitchroll_rate_reward,
-            'orient_reward': orient_reward,
-            'pitchroll_reward': pitchroll_reward,
+            # TODO
             'yaw_rate_reward': yaw_rate_reward,
             'track_vel_reward': track_vel_reward,
             'healthy_reward': healthy_reward,
@@ -275,10 +403,13 @@ class GOEnv(MujocoEnv):
             'z_pos_reward': z_pos_reward,
             'z_vel_reward': z_vel_reward,
             'traverse': self.data.qpos[0],
+            'side': self.data.qpos[1],
             'height': self.data.qpos[2],
-            'roll': after_orientation[1],
+            'roll': 180*self.base_orientation[0]/np.pi,
+            'pitch': 180*self.base_orientation[1]/np.pi,
+            'yaw': 180 * self.base_orientation[2] / np.pi,
             'feet_slip': foot_slip_reward,
-            # 'two feet': two_feet_reward
+            'two feet': two_feet_reward,
         }
         if self.render_mode == "human":
             self.render()
@@ -306,3 +437,29 @@ class GOEnv(MujocoEnv):
         for key in info.keys():
             print(f"{key} : {info[key]:.2f}")
         return
+
+    def _compute_torques(self, actions):
+        """ Compute torques from actions.
+            Actions can be interpreted as position or velocity targets given to a PD controller, or directly as scaled torques.
+            [NOTE]: torques must have the same dimension as the number of DOFs, even if some DOFs are not actuated.
+
+        Args:
+            actions (torch.Tensor): Actions
+
+        Returns:
+            [torch.Tensor]: Torques sent to the simulation
+        """
+        # TODO
+        raise NotImplementedError
+        #pd controller
+        actions_scaled = actions * self.action_scale
+        control_type = self.control_type
+        if control_type == "P":
+            torques = self.p_gain*(actions_scaled + self.init_joints[-12:] - self.dof_pos) - self.d_gain*self.dof_vel
+        elif control_type == "V":
+            torques = self.p_gain*(actions_scaled - self.dof_vel) - self.d_gain*(self.dof_vel - self.last_dof_vel)/self.sim_params.dt
+        elif control_type == "T":
+            torques = actions_scaled
+        else:
+            raise NameError(f"Unknown controller type: {control_type}")
+        return np.clip(torques, -self.torque_limits, self.torque_limits)

@@ -1,0 +1,84 @@
+ac:
+  activation: elu
+  actor_hidden_dim: 512
+  actor_n_layers: 3
+  critic_hidden_dim: 512
+  critic_n_layers: 3
+  init_std: 1.0
+algorithm:
+  action_scale: 1.0
+  clip_param: 0.2
+  desired_kl: 0.01
+  entropy_coef: 0.01
+  gamma: 0.99
+  lam: 0.95
+  learning_rate: 0.0005
+  max_grad_norm: 1.0
+  num_batches: 4
+  num_epochs: 5
+  schedule: adaptive
+  use_clipped_value_loss: true
+  use_ppo: true
+  value_loss_coef: 1.0
+env:
+  control:
+    base_height_target: 0.34
+    control_type: P
+    damping: 0.01
+    only_positive_rewards: false
+    stiffness: 1.0
+    tracking_sigma: 0.1
+    use_torque: false
+    vel_commands:
+    - 0.5
+    - 0.0
+    - 0.0
+  exclude_current_positions_from_observations: false
+  frame_skip: 40
+  healthy_z_range:
+  - 0.15
+  - 0.5
+  reset_noise_scale: 0.01
+  rewards:
+    action_rate: 0.0
+    ang_vel_xy: 0.0
+    base_height: -0.0
+    collision: 0.0
+    dof_acc: 0.0
+    dof_vel: -0.0
+    feet_air_time: 0.0
+    feet_stumble: -0.0
+    foot_slip: 1.0
+    healthy: 5.0
+    joint_pos: -0.3
+    lin_vel: 15.0
+    lin_vel_z: 0.0
+    living: -0.0
+    living_pos: 2.0
+    pitch: -2.0
+    pitch_rate: -2.0
+    roll: -0.5
+    roll_rate: -2.0
+    stand_still: -0.0
+    termination: -0.0
+    torques: 0.0
+    tracking_ang_vel: 0.0
+    tracking_lin_vel: 0.0
+    two_feet: 0.0
+    yaw: -0.3
+    yaw_rate: -1.0
+    z_pos: 1.0
+    z_vel: 1.0
+  terminate_when_unhealthy: true
+  unhealthy_angle: 40
+runner:
+  experiment_name: walking_experiment
+  first_save_iter: 80
+  max_iterations: 1500
+  max_timesteps: 2000
+  plot_interval: 10
+  render_human: false
+  run_name: ''
+  save_data: true
+  save_interval: 50
+  save_model: true

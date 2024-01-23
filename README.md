@@ -1,5 +1,12 @@
 # deepRL_cheetah
 
+## Logging - Config
+
+The config file "config/config.yaml" is copied into the checkpoint folder "checkpoint/.../model".
+In addition the recorded mean values in rl_agend.learn() are saved as a dictionary in the same folder with a copy of the newest "model.pt" of the current training process.
+The folder "checkpoints/.../model/" is copied to "checkpoints/model/". That folder is used in the test.py script.
+
+
 ## DONE:
 - implement GAE: as discribed in ActorCritic slides
 - implement PPO: ActorCritic slides, https://spinningup.openai.com/en/latest/algorithms/ppo.html

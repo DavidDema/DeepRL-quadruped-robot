@@ -10,57 +10,57 @@ from rl_modules.actor_critic import ActorCritic
 import matplotlib.pyplot as plt
 import numpy as np
 
+from collections import defaultdict
+import pickle
+import shutil
+
 class RLAgent(nn.Module):
     def __init__(self,
                  env: GOEnv,
                  storage: Storage,
                  actor_critic: ActorCritic,
-                 lr=0.0008,
-                 value_loss_coef=1.0,
-                 num_batches=4,
-                 num_epochs=5,
+                 cfg,
                  device='cpu',
-                 action_scale=0.6,
-                 ppo_eps=0.2,
-                 target_kl=0.5,
-                 desired_kl=0.01,
-                 entropy_coef=0.01,
-                 schedule="adaptive",
+                 ppo_eps=0.2, # eigenes PPO
+                 target_kl=0.5, # eigenes PPO
                  ):
         super().__init__()
         self.env = env
         self.storage = storage
         self.actor_critic = actor_critic
-        self.num_batches = num_batches
-        self.num_epochs = num_epochs
+        self.cfg = cfg
+        self.alg_cfg = cfg['algorithm']
+        self.runner_cfg = cfg['runner']
+
+        self.value_loss_coef = self.alg_cfg['value_loss_coef']
+        self.clip_param = self.alg_cfg['clip_param']
+        self.use_clipped_value_loss = self.alg_cfg['use_clipped_value_loss']
+        self.desired_kl = self.alg_cfg['desired_kl']
+        self.entropy_coef = self.alg_cfg['entropy_coef']
+        self.gamma = self.alg_cfg['gamma']
+        self.lam = self.alg_cfg['lam']
+        self.learning_rate = self.alg_cfg['learning_rate']
+        self.max_grad_norm = self.alg_cfg['max_grad_norm']
+
+        self.num_batches = self.alg_cfg['num_batches']
+        self.num_epochs = self.alg_cfg['num_epochs']
+        self.schedule = self.alg_cfg['schedule']
+        self.action_scale = self.alg_cfg['action_scale']
 
         self.device = device
-        self.action_scale = action_scale
+
         self.transition = Storage.Transition()
         # create the normalizer
-        self.optimizer = optim.Adam(self.actor_critic.parameters(), lr=lr)
+        self.optimizer = optim.Adam(self.actor_critic.parameters(), lr=self.learning_rate)
 
-        # ppo
+        self.use_ppo = self.alg_cfg['use_ppo']
+        # für eigenes ppo
         self.ppo_eps = ppo_eps
         self.target_kl = target_kl
 
-        # Epsilon-Greedy
-        self.exploration_prob = 0.9
-
-        self.learning_rate = lr
-        self.value_loss_coef = value_loss_coef
-        self.entropy_coef = entropy_coef
-        self.desired_kl = desired_kl
-        self.schedule = schedule
-
-        self.use_clipped_value_loss = True
-        self.clip_param = 0.2
-
-        self.use_exploration = False
-
     def act(self, obs):
         # Compute the actions and values
-        action = self.actor_critic.act(obs, exploration_prob=self.exploration_prob, explore_exploit=self.use_exploration).squeeze()
+        action = self.actor_critic.act(obs).squeeze()
         self.transition.action = action.detach().cpu().numpy()
         self.transition.value = self.actor_critic.evaluate(obs).squeeze().detach().cpu().numpy()
         self.transition.action_log_prob = self.actor_critic.get_actions_log_prob(action).detach().cpu().numpy()
@@ -84,23 +84,24 @@ class RLAgent(nn.Module):
 
     def compute_returns(self, last_obs):
         last_values = self.actor_critic.evaluate(last_obs).detach().cpu().numpy()
-        return self.storage.compute_returns(last_values)
+        return self.storage.compute_returns(last_values, self.gamma, self.lam)
 
-    def update(self, ppo=True, ppo_eth=True):
+    def update(self, own_ppo=False):
         mean_value_loss = 0
         mean_actor_loss = 0
         generator = self.storage.mini_batch_generator(self.num_batches, self.num_epochs, device=self.device) # get data from storage
 
         for (obs_batch, actions_batch, target_values_batch, advantages_batch,
              old_actions_log_prob_batch, returns_batch, old_mu_batch, old_sigma_batch) in generator:
-            self.actor_critic.act(obs_batch, exploration_prob=self.exploration_prob) # evaluate policy
+            self.actor_critic.act(obs_batch) # evaluate policy
             actions_log_prob_batch = self.actor_critic.get_actions_log_prob(actions_batch)
             value_batch = self.actor_critic.evaluate(obs_batch)
             mu_batch = self.actor_critic.action_mean
             sigma_batch = self.actor_critic.action_std
+            entropy_batch = self.actor_critic.entropy
 
             # compute losses
-            if ppo_eth:
+            if self.use_ppo:
                 if self.desired_kl is not None and self.schedule == "adaptive":
                     with torch.inference_mode():
                         kl = torch.sum(
@@ -138,19 +139,19 @@ class RLAgent(nn.Module):
                 else:
                     value_loss = (returns_batch - value_batch).pow(2).mean()
 
-                loss = surrogate_loss + self.value_loss_coef * value_loss #- self.entropy_coef * entropy_batch.mean() # TODO add entropy loss ?
+                loss = surrogate_loss + self.value_loss_coef * value_loss - self.entropy_coef * entropy_batch.mean()
 
                 # Gradient step
                 self.optimizer.zero_grad()
                 loss.backward()
-                #TODO: nn.utils.clip_grad_norm_(self.actor_critic.parameters(), self.max_grad_norm)
+                #TODO: nn.utils2.clip_grad_norm_(self.actor_critic.parameters(), self.max_grad_norm)
                 self.optimizer.step()
 
                 mean_value_loss += value_loss.item()
                 mean_actor_loss += surrogate_loss.item()
 
             else:
-                if ppo:
+                if own_ppo:
                     policy_ratio = torch.exp(actions_log_prob_batch - old_actions_log_prob_batch)
                     policy_ratio_clipped = policy_ratio.clamp(1 - self.ppo_eps, 1 + self.ppo_eps)
                     actor_loss = -torch.min(policy_ratio * advantages_batch, policy_ratio_clipped * advantages_batch).mean()
@@ -160,6 +161,7 @@ class RLAgent(nn.Module):
                         print("ppo early termination: policy_ratio: " + str(policy_kl))
                         break
                 else:
+                    # TODO: check implementation -> actor_loss always = 1.0
                     actor_loss = (-advantages_batch * actions_log_prob_batch).mean()
 
                 critic_loss = advantages_batch.pow(2).mean()
@@ -185,7 +187,6 @@ class RLAgent(nn.Module):
         obs, _ = self.env.reset() # first reset env
 
         infos = []
-        start = time.time()
         for t in range(self.storage.max_timesteps): # rollout an episode
             obs_tensor = torch.from_numpy(obs).to(self.device).float().unsqueeze(dim=0)
             with torch.no_grad():
@@ -193,8 +194,12 @@ class RLAgent(nn.Module):
                     action = self.act(obs_tensor) # sample an action from policy
                 else:
                     action = self.inference(obs_tensor)
+
+            # timesteps since last termination
             self.env.timestep = t-last_termination_timestep
+            # remaining episode time since termination
             self.env.max_timesteps = self.storage.max_timesteps - last_termination_timestep
+
             obs_next, reward, terminate, info = self.env.step(action*self.action_scale) # perform one step action
             infos.append(info)
             if is_training:
@@ -209,14 +214,18 @@ class RLAgent(nn.Module):
 
         return infos
 
-    def learn(self, save_dir, num_learning_iterations=1000, num_steps_per_val=50, num_plots=10):
-        rewards_collection = []
-        r2_collection = []
-        mean_value_loss_collection = []
-        mean_actor_loss_collection = []
-        mean_traverse_collection = []
-        mean_height_collection = []
-        traverse_max = 0
+    def learn(self, save_dir):
+
+        num_learning_iterations = self.runner_cfg['max_iterations']
+        save_interval = self.runner_cfg['save_interval']
+        plot_interval = self.runner_cfg['plot_interval']
+        save_data = self.runner_cfg['save_data']
+        save_model = self.runner_cfg['save_model']
+        max_timesteps = self.runner_cfg['max_timesteps']
+        first_save_iter = self.runner_cfg['first_save_iter']
+
+        data = defaultdict(list)
+        data['num_learning_iterations'].append(num_learning_iterations)
 
         plt.ion()
         plt.show(block=False)
@@ -225,19 +234,14 @@ class RLAgent(nn.Module):
             start_iter = time.time()
             progress = it / (num_learning_iterations + 1)
             print("---------------")
-            print(f"Episode {it}/{num_learning_iterations} ({progress*100:.2f}%)(Runtime {(time.time()-start)/60:.1f}min)")
-
-            if self.use_exploration:
-                min_prob, max_prob = 0.05, 1
-                self.exploration_prob = np.exp(-(4*progress-np.log(max_prob-min_prob)))+min_prob
-                print(f"Exploration prob: {self.exploration_prob}")
+            print(f"Episode {it}/{num_learning_iterations} ({progress*100:.1f}%)(Runtime {(time.time()-start)/60:.1f}min)")
 
             # play games to collect data
             infos = self.play(is_training=True)  # play
             # improve policy with collected data
             mean_value_loss, mean_actor_loss = self.update()  # update
-            print(f"Actor Loss\t: {mean_actor_loss:.4f}")
-            print(f"Value Loss\t: {mean_value_loss:.4f}")
+            print(f"Actor Loss\t\t: {mean_actor_loss:.4f}")
+            print(f"Value Loss\t\t: {mean_value_loss:.4f}")
 
             infos_array = infos[0]
             info_mean = infos[0]
@@ -247,6 +251,25 @@ class RLAgent(nn.Module):
                     key_values.append(info[key])
                 infos_array[key] = key_values
                 info_mean[key] = np.mean(key_values)
+
+            data['actor_loss'].append(mean_actor_loss)
+            data['value_loss'].append(mean_value_loss)
+            data['reward'].append(np.mean(self.storage.rewards))
+            data['reward_sum'].append(np.sum(self.storage.rewards))
+            data['traverse'].append(info_mean['traverse'])
+            data['side'].append(info_mean['side'])
+            data['height'].append(info_mean['height'])
+            data['yaw'].append(info_mean['yaw'])
+            data['roll'].append(info_mean['roll'])
+            data['pitch'].append(info_mean['pitch'])
+            data['time'].append(time.time()-start)
+            data['epsiode'].append(it)
+
+            if it % plot_interval == 0:
+                self.plot_results(save_dir, data, savefig=True, running_plot=True)
+
+            #print(f"Max.Traverse\t: {np.max(infos_array['traverse'])}")
+
             if False:
                 print("------ Rewards ------ ")
                 max_length = max(len(key) for key in info_mean.keys())
@@ -255,84 +278,69 @@ class RLAgent(nn.Module):
             else:
                 print(f"Total Reward\t: {info_mean['total_reward']:.2f}")
 
-            mean_traverse = info_mean['traverse']
-            mean_height = info_mean['roll']
+            if it % save_interval == 0 and it > first_save_iter:
+                save_dir_model = os.path.join(save_dir, "model")
+                if save_model:
+                    self.save_model(save_dir, f"{it}.pt")
+                    print("Model saved")
 
-            rewards_collection.append(np.mean(self.storage.rewards))
-            r2_collection.append(np.sum(self.storage.rewards)/np.mean(self.storage.rewards))
-            mean_value_loss_collection.append(mean_value_loss)
-            mean_actor_loss_collection.append(mean_actor_loss)
-            mean_traverse_collection.append(mean_traverse)
-            mean_height_collection.append(mean_height)
+                if save_data:
+                    RLAgent.save_data(save_dir_model, data)
+                    print("Data saved to checkpoints/.../data.pkl")
 
-            if it % num_plots == 0:
-                self.plot_results(save_dir, rewards_collection, mean_actor_loss_collection, mean_value_loss_collection,
-                                  mean_traverse_collection, mean_height_collection, r2_collection,
-                                  it, num_learning_iterations)
+                shutil.copytree(save_dir_model, "checkpoints/model", dirs_exist_ok=True)
 
-            print(f"Max.Traverse\t: {np.max(infos_array['traverse'])}")
-
-            if it % num_steps_per_val == 0:
-                #infos = self.play(is_training=False)
-                print("Model saved")
-                self.save_model(os.path.join(save_dir, f'{it}.pt'))
-
-                if False:
-                    save_data_dir = os.path.join(save_dir, 'data')
-                    np.save(os.path.join(save_data_dir, f'rewards_mean.npy'), rewards_collection)
-                    np.save(os.path.join(save_data_dir, f'values_loss_mean.npy'), mean_value_loss_collection)
-                    np.save(os.path.join(save_data_dir, f'actors_loss_mean.npy'), mean_actor_loss_collection)
-                    np.save(os.path.join(save_data_dir, f'rewards_sum.npy'), r2_collection)
-                    print("Arrays saved to checkpoints/data/")
-
-            print(f"Finished after {time.time()-start_iter:.2f}s")
+            print(f"Episode finished after {time.time()-start_iter:.2f}s")
 
         print(f"Training finished after {(time.time()-start)/60} minutes!")
 
-
-
     @staticmethod
-    def plot_results(save_dir, rewards, actor_losses, critic_losses, traverse, height, r2, it, num_learning_iterations):
-
-        def smoothen_plot(data, width=10):
-            smooth_data = data.copy()
-            for i in range(len(data)):
-                if i < width or i > len(data) - width:
-                    continue
-                obs_data = data[(i - width):(i + width)]
-                smooth_data[i] = smooth_data[i] / np.mean(obs_data)
-            return smooth_data
+    def plot_results(save_dir, data, savefig=False, running_plot=False):
 
         # Scaling
         scale_actor = 0.1
         scale_critic = 10000
         scale_reward = 10
 
-        #critic_losses = smoothen_plot(np.array(critic_losses), width=10)
-
-        plt.clf()
-        plt.plot(np.array(actor_losses)/scale_actor, label=f'actor (x{scale_actor})')
-        plt.plot(np.array(critic_losses)/scale_critic, label=f'critic (x{scale_critic})')
-        plt.plot(np.array(rewards)/scale_reward, label=f'reward (x{scale_reward})')
-        plt.plot(np.array(traverse), label=f'avg.traverse', alpha=0.4)
-        plt.plot(np.array(height), label=f'avg.height', alpha=0.4)
-        plt.plot(np.array(r2), label=f'rew_sum', alpha=0.4)
-        plt.title("Actor/Critic Loss (" + str(it) + "/" + str(num_learning_iterations) + ")")
+        if running_plot:
+            plt.clf()
+        else:
+            plt.figure()
+        plt.plot(np.array(data['actor_loss'])/scale_actor, label=f'actor (x{scale_actor})')
+        plt.plot(np.array(data['critic_loss'])/scale_critic, label=f'critic (x{scale_critic})')
+        plt.plot(np.array(data['reward'])/scale_reward, label=f'avg.reward (x{scale_reward})')
+        plt.plot(np.array(data['traverse']), label=f'avg.traverse', alpha=0.4)
+        plt.plot(np.abs(np.array(data['side'])), label=f'avg.abs.side', alpha=0.4)
+        plt.plot(np.array(data['pitch'])/180, label=f'avg.pitch (deg/180deg)', alpha=0.4)
+        #plt.plot(np.array(data['reward_sum']), label=f'rew_sum', alpha=0.4)
+        plt.title("Actor/Critic Loss (" + str(data['epsiode'][-1]) + "/" + str(data['num_learning_iterations'][0]) + ")")
         plt.ylabel("Loss")
         plt.xlabel("Episodes")
         plt.ylim([-1, 4]) # lock y-axis
         #plt.grid(True)
         plt.legend()
-        plt.savefig(os.path.join(save_dir, f'ac_loss.png'))
-        plt.draw()
-        plt.pause(0.1)
+        if savefig:
+            plt.savefig(os.path.join(save_dir, f'ac_loss.png'))
+        if running_plot:
+            plt.draw()
+            plt.pause(0.1)
+        else:
+            plt.show()
 
-    def save_model(self, path):
-        torch.save(self.state_dict(), path)
-        torch.save(self.state_dict(), 'checkpoints/model.pt')
+    def save_model(self, save_dir, filename):
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+        torch.save(self.state_dict(), os.path.join(save_dir,filename))
+        torch.save(self.state_dict(), os.path.join(save_dir, "model/model.pt"))
 
     def load_model(self, path):
         self.load_state_dict(torch.load(path))
 
-
+    @staticmethod
+    def save_data(save_dir: str, data_dict: defaultdict, filename: str = "data"):
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+        f = open(os.path.join(save_dir, filename + ".pkl"), "wb")
+        pickle.dump(data_dict, f)
+        f.close()
 

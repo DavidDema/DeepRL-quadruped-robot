@@ -11,6 +11,8 @@ class Storage:
             self.done = None
             self.value = None
             self.action_log_prob = None
+            self.action_mean = None
+            self.action_std = None
 
         def clear(self):
             self.__init__()
@@ -18,12 +20,12 @@ class Storage:
     def __init__(self,
                  obs_dim,
                  action_dim,
-                 max_timesteps,
-                 gamma=0.99,
-                 lmbda=0.95):
-        self.max_timesteps = max_timesteps
-        self.gamma = gamma
-        self.lmbda = lmbda
+                 cfg=None,
+                 max_timesteps=2000):
+        if not cfg:
+            self.max_timesteps = max_timesteps
+        else:
+            self.max_timesteps = cfg['runner']['max_timesteps']
 
         self.mu = np.zeros([self.max_timesteps, action_dim])
         self.sigma = np.zeros([self.max_timesteps, action_dim])
@@ -59,23 +61,23 @@ class Storage:
     def clear(self):
         self.step = 0
 
-    def compute_returns(self, last_values):
+    def compute_returns(self, last_values, gamma, lam):
         advantage = 0
         for step in reversed(range(self.max_timesteps)):
             if step == self.max_timesteps - 1:
                 next_values = last_values
             else:
                 next_values = self.values[step + 1]
-            next_is_not_terminal = 1.0 - self.dones[step]   #.float()
-            delta = self.rewards[step] + next_is_not_terminal * self.gamma * next_values - self.values[step]
-            advantage = delta + next_is_not_terminal * self.gamma * self.lmbda * advantage
+            next_is_not_terminal = 1.0 - self.dones[step]
+            delta = self.rewards[step] + next_is_not_terminal * gamma * next_values - self.values[step]
+            advantage = delta + next_is_not_terminal * gamma * lam * advantage
             self.returns[step] = advantage + self.values[step]
 
         # Compute and normalize the advantages
         self.advantages = self.returns - self.values
         self.advantages = (self.advantages - self.advantages.mean()) / (self.advantages.std() + 1e-8)
 
-    def compute_returns2(self, last_values, gae=True):
+    def compute_returns_old(self, last_values, gae=True):
         for step in reversed(range(self.max_timesteps)):
             self.advantages[step] = 0 
             if gae:
@@ -97,7 +99,6 @@ class Storage:
                 delta = self.rewards[step] + next_is_not_terminate * self.gamma * next_values - self.values[step]
                 self.advantages[step] = delta
             self.returns[step] = self.advantages[step] + self.values[step]
-
 
     def mini_batch_generator(self, num_batches, num_epochs=8, device="cpu"):
         batch_size = self.max_timesteps // num_batches
