@@ -18,8 +18,8 @@ class GOEnv(MujocoEnv):
         class RewardScale:
              # EDIT
             lin_vel = 0.0
-            living = -1.0 
-            healthy = 1.0
+            living = 0.0 
+            healthy = 0.0
             yaw_rate = 0.0
             pitchroll_rate = 0.0
             pitchroll = 0.0
@@ -30,28 +30,28 @@ class GOEnv(MujocoEnv):
             foot_slip = 0.0
              # EDIT
             termination = -0.0
-            tracking_lin_vel = 10.0
+            tracking_lin_vel = 1.0
             tracking_ang_vel = 0.8
-            lin_vel_z = -6.0
+            lin_vel_z = -2.0
             ang_vel_xy = -0.05
-            torques = -0.0002
+            torques = -0.00001
             dof_vel = -0.
             dof_acc = -2.5e-7
-            base_height = -1.5 
+            base_height = -0 
             feet_air_time = 0.0 # not implemented!
             collision = -1.0
             feet_stumble = -0.0 
             action_rate = -0.01             
             stand_still = -0.
              # EDIT
-            smooth_action_1 = -0.025
-            smooth_action_2 = -0.015
+            smooth_action_1 = -0.0
+            smooth_action_2 = -0.0
 
         class Control:
             control_type = 'P'
             stiffness = 15.0 # EDIT 
             damping = 1.5 # EDIT
-            action_scale = 1.0 # EDIT
+            action_scale = 0.5 # EDIT
         
         def __init__(self):
             self.base_height_target = 0.34
@@ -59,7 +59,7 @@ class GOEnv(MujocoEnv):
             self.control = self.Control()
             self.commands = [0.5, 0.0, 0.0] # x, y, yaw
             self.tracking_sigma = 0.25
-            self.only_positive_rewards = False
+            self.only_positive_rewards = True
 
 
     def __init__(self,
@@ -419,6 +419,9 @@ class GOEnv(MujocoEnv):
         ]
 
         total_rewards = np.sum(rewards)
+
+        if self.cfg.only_positive_rewards and total_rewards < 0.0:
+            total_rewards = np.float64(0)
 
         terminate = self.terminated
         observation = self._get_obs()
