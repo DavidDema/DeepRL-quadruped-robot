@@ -6,6 +6,25 @@ The config file "config/config.yaml" is copied into the checkpoint folder "check
 In addition the recorded mean values in rl_agend.learn() are saved as a dictionary in the same folder with a copy of the newest "model.pt" of the current training process.
 The folder "checkpoints/.../model/" is copied to "checkpoints/model/". That folder is used in the test.py script.
 
+## TODO: Report
+
+Chapters:
+- Introduction
+- Method
+- Results
+- Conclusion
+
+Other tasks: 
+- Retrieving results
+- Create Readme for Tutors
+
+Results:
+- PPO on/off
+- GAE on/off
+- Longer Training Time
+- Different Rewards
+- Longer MaxTimesteps
+- 
 
 ## DONE:
 - implement GAE: as discribed in ActorCritic slides

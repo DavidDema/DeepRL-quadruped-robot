@@ -248,12 +248,14 @@ class RLAgent(nn.Module):
             for key in info_mean.keys():
                 key_values = []
                 for info in infos:
+                    if key == "rewards":
+                        continue
                     key_values.append(info[key])
                 infos_array[key] = key_values
                 info_mean[key] = np.mean(key_values)
 
             data['actor_loss'].append(mean_actor_loss)
-            data['value_loss'].append(mean_value_loss)
+            data['critic_loss'].append(mean_value_loss)
             data['reward'].append(np.mean(self.storage.rewards))
             data['reward_sum'].append(np.sum(self.storage.rewards))
             data['traverse'].append(info_mean['traverse'])
@@ -278,7 +280,7 @@ class RLAgent(nn.Module):
             else:
                 print(f"Total Reward\t: {info_mean['total_reward']:.2f}")
 
-            if it % save_interval == 0 and it > first_save_iter:
+            if it % save_interval == 0 and it >= first_save_iter:
                 save_dir_model = os.path.join(save_dir, "model")
                 if save_model:
                     self.save_model(save_dir, f"{it}.pt")
@@ -311,7 +313,7 @@ class RLAgent(nn.Module):
         plt.plot(np.array(data['reward'])/scale_reward, label=f'avg.reward (x{scale_reward})')
         plt.plot(np.array(data['traverse']), label=f'avg.traverse', alpha=0.4)
         plt.plot(np.abs(np.array(data['side'])), label=f'avg.abs.side', alpha=0.4)
-        plt.plot(np.array(data['pitch'])/180, label=f'avg.pitch (deg/180deg)', alpha=0.4)
+        plt.plot(np.array(data['pitch'])/180, label=f'avg.pitch (deg/180deg)', alpha=0.4, ls="--")
         #plt.plot(np.array(data['reward_sum']), label=f'rew_sum', alpha=0.4)
         plt.title("Actor/Critic Loss (" + str(data['epsiode'][-1]) + "/" + str(data['num_learning_iterations'][0]) + ")")
         plt.ylabel("Loss")

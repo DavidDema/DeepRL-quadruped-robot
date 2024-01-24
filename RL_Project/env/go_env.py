@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import numpy as np
 from gymnasium.envs.mujoco.mujoco_env import MujocoEnv
 from gymnasium.spaces import Box
@@ -174,11 +176,13 @@ class GOEnv(MujocoEnv):
         return np.exp(-np.linalg.norm((self.vel_commands - self.base_lin_vel) ** 2))
 
     def _reward_z_vel(self):
-        return np.exp(-self.base_lin_vel[2] ** 2) # **2
+        #return np.exp(-self.base_lin_vel[2] ** 2) # **2
+        return self.base_lin_vel[2] ** 2
 
     def _reward_z_pos(self):
         # penalize movement in z direction
-        return np.exp(-np.abs(self.base_pos[2] - self.base_height_target) ** 2) # **2
+        #return np.exp(-np.abs(self.base_pos[2] - self.base_height_target) ** 2) # **2
+        return np.abs(self.base_pos[2] - self.base_height_target) ** 2
 
     def _reward_yaw(self):
         return np.abs(self.base_orientation[2]) ** 2
@@ -331,85 +335,56 @@ class GOEnv(MujocoEnv):
         feet_vel = feet_pos / self.dt
         feet_cont = self.data.contact.geom2
 
-        track_vel_reward = self._reward_lin_vel()
-        living_reward = self._reward_living()
-        living_pos_reward = self._reward_living_pos()
-        healthy_reward = self._reward_healthy()
-
-        yaw_rate_reward = self._reward_yaw_rate()
-        pitch_rate_reward = self._reward_pitch_rate()
-        roll_rate_reward = self._reward_roll_rate()
-        yaw_reward = self._reward_yaw()
-        pitch_reward = self._reward_pitch()
-        roll_reward = self._reward_roll()
-
-        joint_pos_reward = self._reward_joint_pose()
-        z_vel_reward = self._reward_z_vel()
-        z_pos_reward = self._reward_z_pos()
-        foot_slip_reward = self._reward_foot_slip(feet_pos, feet_vel, feet_cont)
-        two_feet_reward = 0 # TODO
+        rewards_dict = defaultdict(float)
+        rewards_dict['lin_vel'] = self._reward_lin_vel()
+        rewards_dict['living'] = self._reward_living()
+        rewards_dict['living_pos'] = self._reward_living_pos()
+        rewards_dict['healthy'] = self._reward_healthy()
+        rewards_dict['yaw_rate'] = self._reward_yaw_rate()
+        rewards_dict['pitch_rate'] = self._reward_pitch_rate()
+        rewards_dict['roll_rate'] = self._reward_roll_rate()
+        rewards_dict['yaw'] = self._reward_yaw()
+        rewards_dict['pitch'] = self._reward_pitch()
+        rewards_dict['roll'] = self._reward_roll()
+        rewards_dict['joint_pos'] = self._reward_joint_pose()
+        rewards_dict['z_vel'] = self._reward_z_vel()
+        rewards_dict['z_pos'] = self._reward_z_pos()
+        rewards_dict['foot_slip'] = self._reward_foot_slip(feet_pos, feet_vel, feet_cont)
+        rewards_dict['two_feet'] = 0
 
         # ETH
-        # tracking_lin_vel_reward = self._reward_tracking_lin_vel()
-        # tracking_ang_vel_reward = self._reward_tracking_ang_vel()
-        # lin_vel_z_reward = self._reward_base_height()
-        # ang_vel_xy_reward = self._reward_ang_vel_xy()
-        # torques = self._reward_torques()
-        # dof_acc = self._reward_dof_acc()
-        # feet_air_time = self._reward_feet_air_time()
-        # collision = self._reward_collision()
-        # action_rate = self._reward_action_rate()
+        # rewards_dict['tracking_lin_vel'] = self._reward_tracking_lin_vel()
+        # rewards_dict['tracking_ang_vel'] = self._reward_tracking_ang_vel()
+        # rewards_dict['lin_vel_z'] = self._reward_base_height()
+        # rewards_dict['ang_vel_xy'] = self._reward_ang_vel_xy()
+        # rewards_dict['torques'] = self._reward_torques()
+        # rewards_dict['dof_acc'] = self._reward_dof_acc()
+        # rewards_dict['feet_air_time'] = self._reward_feet_air_time()
+        # rewards_dict['collision'] = self._reward_collision()
+        # rewards_dict['action_rate'] = self._reward_action_rate()
+        # rewards_dict['base_height'] = 0
+        # rewards_dict['dof_vel'] = 0
+        # rewards_dict['feet_stumble'] = 0
+        # rewards_dict['stand_still'] = 0
+        # rewards_dict['termination'] = 0
 
-        rewards = [
-            healthy_reward * self.rew_cfg['healthy'],       # 5.0
-            track_vel_reward * self.rew_cfg['lin_vel'],     # 15.0
-            living_reward * self.rew_cfg['living'],         # -2.0
-            living_pos_reward * self.rew_cfg['living_pos'], # 2.0
-            yaw_rate_reward * self.rew_cfg['yaw_rate'],     # -2.0
-            pitch_rate_reward * self.rew_cfg['pitch_rate'], # -2.0
-            roll_rate_reward * self.rew_cfg['roll_rate'],   # -2.0
-            yaw_reward * self.rew_cfg['yaw'],               # -0.3
-            pitch_reward * self.rew_cfg['pitch'],           # -0.5
-            roll_reward * self.rew_cfg['roll'],             # -0.5
-            joint_pos_reward * self.rew_cfg['joint_pos'],   # -0.3
-            z_vel_reward * self.rew_cfg['z_vel'],           # 2.0
-            z_pos_reward * self.rew_cfg['z_pos'],           # 2.0
-            foot_slip_reward * self.rew_cfg['foot_slip'],   # 0.3
-            two_feet_reward * self.rew_cfg['two_feet'],     # 0.0
-            # ETH
-            # tracking_lin_vel_reward * self.rew_cfg['tracking_lin_vel'],
-            # tracking_ang_vel_reward * self.rew_cfg['tracking_ang_vel'],
-            # lin_vel_z_reward * self.rew_cfg['lin_vel_z'],
-            # ang_vel_xy_reward * self.rew_cfg['ang_vel_xy'],
-            # torques * self.rew_cfg['torques'],
-            # dof_acc * self.rew_cfg['dof_acc'],
-            # feet_air_time * self.rew_cfg['feet_air_time'],
-            # collision * self.rew_cfg['collision'],
-            # action_rate * self.rew_cfg['action_rate'],
-        ]
+        # add reward scaling
+        for key in rewards_dict.keys():
+            rewards_dict[key] *= self.rew_cfg[key]
 
-        total_rewards = np.sum(rewards)
+        total_rewards = sum(rewards_dict.values())
 
         terminate = self.terminated
         observation = self._get_obs()
         info = {
             'total_reward': total_rewards,
-            'joint_pos_reward': joint_pos_reward,
-            # TODO
-            'yaw_rate_reward': yaw_rate_reward,
-            'track_vel_reward': track_vel_reward,
-            'healthy_reward': healthy_reward,
-            'living_reward': living_reward,
-            'z_pos_reward': z_pos_reward,
-            'z_vel_reward': z_vel_reward,
             'traverse': self.data.qpos[0],
             'side': self.data.qpos[1],
             'height': self.data.qpos[2],
             'roll': 180*self.base_orientation[0]/np.pi,
             'pitch': 180*self.base_orientation[1]/np.pi,
             'yaw': 180 * self.base_orientation[2] / np.pi,
-            'feet_slip': foot_slip_reward,
-            'two feet': two_feet_reward,
+            'rewards': rewards_dict,
         }
         if self.render_mode == "human":
             self.render()

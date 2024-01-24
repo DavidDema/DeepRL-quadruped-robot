@@ -5,11 +5,11 @@ runner:
   render_human: false
   max_iterations: 1500 # iterations per training
   max_timesteps: 2000 # timestep per episode
-  save_interval: 50 # save every x iteration
+  save_interval: 100 # save every x iteration
   plot_interval: 10 # plot every x iteration
   save_data: true # save recorded data in pickle-file
   save_model: true # save model in .pt file
-  first_save_iter: 80
+  first_save_iter: 100
 
 # ----------------------
 env:
@@ -37,19 +37,19 @@ env:
 
   rewards:
     healthy: 5.0
-    lin_vel: 15.0
+    lin_vel: 10.0
     living: -0.0 # -2.0
-    living_pos: 2.0
-    yaw_rate: -1.0
-    roll_rate: -2.0
-    pitch_rate: -2.0
+    living_pos: 3.0
+    yaw_rate: -0.2
+    roll_rate: -0.2
+    pitch_rate: -0.0
     yaw: -0.3
     roll: -0.5
-    pitch: -2.0
-    joint_pos: -0.3
-    z_pos: 1.0 # 1.0
-    z_vel: 1.0 # 1.0
-    foot_slip: 1.0
+    pitch: -8.0
+    joint_pos: -0.2
+    z_pos: -0.1 # 1.0
+    z_vel: -0.2 # 1.0
+    foot_slip: 0.0
     two_feet: 0.0
 
     # ETH
