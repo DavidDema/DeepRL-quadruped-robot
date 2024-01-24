@@ -19,7 +19,7 @@ def test():
 
     #rl_agent.load_model('checkpoints/2024-01-22/12-10-21/500.pt')
     rl_agent.load_model('checkpoints/model.pt')
-    rl_agent.play(is_training=False)
+    rl_agent.play(is_training=True)
 
 
 if __name__ == '__main__':

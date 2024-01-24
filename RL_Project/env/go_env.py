@@ -43,13 +43,13 @@ class GOEnv(MujocoEnv):
             action_rate = -0.01             
             stand_still = -0.
 
-            smooth_action_1 = -2.5
-            smooth_action_2 = -1.5
+            smooth_action_1 = -0.025
+            smooth_action_2 = -0.015
 
         class Control:
             control_type = 'P'
-            stiffness = 30.0 # 15 
-            damping = 0.2 # 1.5
+            stiffness = 15.0 # 15 
+            damping = 1.5 # 1.5
             action_scale = 1.0
         
         def __init__(self):
@@ -126,7 +126,7 @@ class GOEnv(MujocoEnv):
         self.p_gain = np.ones(self.action_dim) * self.cfg.control.stiffness
         self.d_gain = np.ones(self.action_dim) * self.cfg.control.damping
 
-        self.torque_limits = 20
+        self.torque_limits = 100
 
     @property
     def lower_limits(self):
@@ -334,7 +334,7 @@ class GOEnv(MujocoEnv):
         self.qt = actions_scaled + self.init_joints[-12:]
         
         self.last_action = self.action
-        self.action = np.clip(actions_scaled, a_min=self.lower_limits, a_max=self.upper_limits)
+        self.action = actions_scaled
         if True:
             torque = self.p_gain*(actions_scaled + self.init_joints[-12:] - self.dof_pos) - self.d_gain*self.dof_vel
             torque = np.clip(torque, a_min=-self.torque_limits, a_max=self.torque_limits)
