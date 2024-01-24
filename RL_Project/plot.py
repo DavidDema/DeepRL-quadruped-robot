@@ -1,15 +1,9 @@
 import pickle
 
 from rl_modules.rl_agent import RLAgent
-from env.go_env import GOEnv
-from rl_modules.storage import Storage
-from rl_modules.actor_critic import ActorCritic
-import wandb
-from datetime import datetime
 import os
-import torch
 
-from utils_cheetah.config import Config
+from deeprl_cheetah.RL_Project.config.config import Config
 
 def plot():
     year = "2024"

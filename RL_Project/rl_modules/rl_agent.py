@@ -224,6 +224,7 @@ class RLAgent(nn.Module):
         max_timesteps = self.runner_cfg['max_timesteps']
         first_save_iter = self.runner_cfg['first_save_iter']
 
+        # Create data dictionary
         data = defaultdict(list)
         data['num_learning_iterations'].append(num_learning_iterations)
 
@@ -232,7 +233,7 @@ class RLAgent(nn.Module):
         start = time.time()
         for it in range(1, num_learning_iterations + 1):
             start_iter = time.time()
-            progress = it / (num_learning_iterations + 1)
+            progress = it / num_learning_iterations
             print("---------------")
             print(f"Episode {it}/{num_learning_iterations} ({progress*100:.1f}%)(Runtime {(time.time()-start)/60:.1f}min)")
 
@@ -241,19 +242,26 @@ class RLAgent(nn.Module):
             # improve policy with collected data
             mean_value_loss, mean_actor_loss = self.update()  # update
             print(f"Actor Loss\t\t: {mean_actor_loss:.4f}")
-            print(f"Value Loss\t\t: {mean_value_loss:.4f}")
+            print(f"Value Loss\t\t: {mean_value_loss:.2f}")
 
             infos_array = infos[0]
+            info_rewards = infos[0]['rewards']
             info_mean = infos[0]
             for key in info_mean.keys():
                 key_values = []
+                if key == "rewards":
+                    continue
+                    for info in infos:
+                        for rew_key in info[key]:
+                            # TODO
+                            pass
+
                 for info in infos:
-                    if key == "rewards":
-                        continue
                     key_values.append(info[key])
                 infos_array[key] = key_values
                 info_mean[key] = np.mean(key_values)
 
+            # Append relevant data to the dict for postprocessing
             data['actor_loss'].append(mean_actor_loss)
             data['critic_loss'].append(mean_value_loss)
             data['reward'].append(np.mean(self.storage.rewards))
@@ -267,19 +275,23 @@ class RLAgent(nn.Module):
             data['time'].append(time.time()-start)
             data['epsiode'].append(it)
 
+            # plot
             if it % plot_interval == 0:
-                self.plot_results(save_dir, data, savefig=True, running_plot=True)
+                save_dir_model = os.path.join(save_dir, "model")
+                self.plot_results(save_dir_model, data, savefig=True, running_plot=True)
 
-            #print(f"Max.Traverse\t: {np.max(infos_array['traverse'])}")
-
+            # Print Rewards
             if False:
+                # all rewards
                 print("------ Rewards ------ ")
                 max_length = max(len(key) for key in info_mean.keys())
                 for key in info_mean.keys():
                     print(key.ljust(max_length) + "\t : " + str(info_mean[key]))
             else:
+                # total reward
                 print(f"Total Reward\t: {info_mean['total_reward']:.2f}")
 
+            # save model and data to checkpoints/.../model/
             if it % save_interval == 0 and it >= first_save_iter:
                 save_dir_model = os.path.join(save_dir, "model")
                 if save_model:
@@ -290,19 +302,25 @@ class RLAgent(nn.Module):
                     RLAgent.save_data(save_dir_model, data)
                     print("Data saved to checkpoints/.../data.pkl")
 
-                shutil.copytree(save_dir_model, "checkpoints/model", dirs_exist_ok=True)
+                if not os.path.exists("checkpoints/latest"):
+                    os.makedirs("checkpoints/latest")
+                shutil.copytree(save_dir_model, "checkpoints/latest", dirs_exist_ok=True)
 
+            # Episode finished
             print(f"Episode finished after {time.time()-start_iter:.2f}s")
 
+        plt.show()
+        # Learning finished
         print(f"Training finished after {(time.time()-start)/60} minutes!")
 
     @staticmethod
     def plot_results(save_dir, data, savefig=False, running_plot=False):
 
         # Scaling
-        scale_actor = 0.1
-        scale_critic = 10000
+        scale_actor = 0.05
+        scale_critic = 5000
         scale_reward = 10
+        scale_meters = 1
 
         if running_plot:
             plt.clf()
@@ -311,9 +329,9 @@ class RLAgent(nn.Module):
         plt.plot(np.array(data['actor_loss'])/scale_actor, label=f'actor (x{scale_actor})')
         plt.plot(np.array(data['critic_loss'])/scale_critic, label=f'critic (x{scale_critic})')
         plt.plot(np.array(data['reward'])/scale_reward, label=f'avg.reward (x{scale_reward})')
-        plt.plot(np.array(data['traverse']), label=f'avg.traverse', alpha=0.4)
-        plt.plot(np.abs(np.array(data['side'])), label=f'avg.abs.side', alpha=0.4)
-        plt.plot(np.array(data['pitch'])/180, label=f'avg.pitch (deg/180deg)', alpha=0.4, ls="--")
+        plt.plot(np.array(data['traverse'])/scale_meters, label=f'avg.traverse', alpha=0.4)
+        plt.plot(np.abs(np.array(data['side']))/scale_meters, label=f'avg.abs.side', alpha=0.4)
+        #plt.plot(np.array(data['pitch'])/180, label=f'avg.pitch (deg/180deg)', alpha=0.4, ls="--")
         #plt.plot(np.array(data['reward_sum']), label=f'rew_sum', alpha=0.4)
         plt.title("Actor/Critic Loss (" + str(data['epsiode'][-1]) + "/" + str(data['num_learning_iterations'][0]) + ")")
         plt.ylabel("Loss")
@@ -322,7 +340,7 @@ class RLAgent(nn.Module):
         #plt.grid(True)
         plt.legend()
         if savefig:
-            plt.savefig(os.path.join(save_dir, f'ac_loss.png'))
+            plt.savefig(os.path.join(save_dir, 'ac_loss.png'))
         if running_plot:
             plt.draw()
             plt.pause(0.1)
@@ -333,7 +351,7 @@ class RLAgent(nn.Module):
         if not os.path.exists(save_dir):
             os.makedirs(save_dir)
         torch.save(self.state_dict(), os.path.join(save_dir,filename))
-        torch.save(self.state_dict(), os.path.join(save_dir, "model/model.pt"))
+        torch.save(self.state_dict(), os.path.join(save_dir, f"model/model.pt"))
 
     def load_model(self, path):
         self.load_state_dict(torch.load(path))

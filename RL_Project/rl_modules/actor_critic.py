@@ -20,7 +20,11 @@ class ActorCritic(nn.Module):
                          n_layers=self.ac_cfg['actor_n_layers'],
                          act=nn.ELU(),
                          output_act=nn.Tanh(),
-                         using_norm=False)
+                         using_norm=False,
+                         use_dropout=self.ac_cfg['use_dropout'],
+                         dropout_p=self.ac_cfg['dropout_p'],
+                         # use_ltsm=self.ac_cfg['use_ltsm'],
+                         )
 
         self.critic = MLP(dim_in=state_dim,
                           dim_hidden=self.ac_cfg['critic_hidden_dim'],
@@ -28,8 +32,11 @@ class ActorCritic(nn.Module):
                           n_layers=self.ac_cfg['critic_n_layers'],
                           act=nn.ELU(),
                           output_act=None,
-                          using_norm=False)
-
+                          using_norm=False,
+                          use_dropout=self.ac_cfg['use_dropout'],
+                          dropout_p=self.ac_cfg['dropout_p'],
+                          #use_ltsm=self.ac_cfg['use_ltsm'],
+                          )
 
         # Action distribution
         self.std = nn.Parameter(self.ac_cfg['init_std'] * torch.ones(action_dim))

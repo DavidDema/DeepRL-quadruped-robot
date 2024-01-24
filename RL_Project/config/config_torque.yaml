@@ -1,10 +1,10 @@
 # ----------------------
 runner:
   experiment_name: default    # not used, but can be used for additional info
-  render_human: false          # show env during training
-  max_iterations: 2000        # iterations per training
+  render_human: true          # show env during training
+  max_iterations: 1500        # iterations per training
   max_timesteps: 2000         # timestep per episode
-  save_interval: 200          # save every x iteration
+  save_interval: 100          # save every x iteration
   plot_interval: 30           # plot every x iteration
   save_data: true             # save recorded data in pickle-file
   save_model: true            # save latest in .pt file
@@ -13,14 +13,15 @@ runner:
 # ----------------------
 env:
   control:
-    use_torque: false
+    use_torque: true
     torque_limits: 100
     base_height_target: 0.34 # in m ?
+    control_type: P # TODO
     damping: 1.5
     stiffness: 15.0
-    only_positive_rewards: true
+    only_positive_rewards: true # not used
     vel_commands:
-    - 0.5 # x
+    - 0.0 # x
     - 0.0 # y
     - 0.0 # z
 
@@ -29,32 +30,32 @@ env:
   healthy_z_range:                # simulation reset if robot is not in this z-range
   - 0.15
   - 0.5
-  unhealthy_angle: 80 # 40        # simulation reset if the roll/pitch angle exceeds this angle
+  unhealthy_angle: 50 # 40        # simulation reset if the roll/pitch angle exceeds this angle
   terminate_when_unhealthy: true  # enable termination of simulation
   reset_noise_scale: 0.01         # noise added to observations after reset
 
   rewards:                        # Rewards
     unhealthy: -5.0 # 5.0
-    not_living: -2.0 # -2.0
-    living: 0.0 # 2.0
+    not_living: -0.0 # -2.0
+    living: 5.0 # 2.0
     vel_x: 15.0
     vel_y: -0.0
-    vel_z: -1.0
-    x: 0.0
+    vel_z: -0.0
+    x: 0.1
     y: 0.0
-    z: -20.0
-    yaw: -0.5 #-0.5
-    pitch: -0.5 #-0.5
-    roll: -0.5 #-0.5
-    yaw_rate: -2.5 #-0.08
-    pitch_rate: -2.00 #-0.01
-    roll_rate: -2.00 #-0.05
-    foot_slip: 0.3
+    z: -80.0
+    yaw: -0.0 #-0.5
+    pitch: -0.0 #-0.5
+    roll: -0.1 #-0.5
+    yaw_rate: -0.0 #-0.08
+    pitch_rate: -0.05 #-0.01
+    roll_rate: -0.05 #-0.05
+    foot_slip: 0.0
     two_feet: 0.0
     feet_air_time: 0.0
     # ETH
-    torques: 0.0 #-0.001
-    dof_acc: 0.0 #-2.5e-7
+    torques: -0.001
+    dof_acc: -2.5e-7
     dof_vel: 0.0
     dof_pos: 0.0
     action_rate: -0.0
@@ -62,16 +63,16 @@ env:
 
 # ----------------------
 algorithm:
-  action_scale: 0.3 #0.5    # action = action * action_scale
+  action_scale: 1.8 #0.5    # action = action * action_scale
   clip_param: 0.2           # PPO
   desired_kl: 0.01          # PPO
   entropy_coef: 0.01        # PPO
-  learning_rate: 0.0005     # PPO
+  learning_rate: 0.0008     # PPO
   max_grad_norm: 1.0        # PPO
   gamma: 0.99               # GAE
   lam: 0.95                 # GAE
-  num_batches: 4            # Storage
-  num_epochs: 5             # Storage
+  num_batches: 2            # Storage
+  num_epochs: 2             # Storage
   schedule: adaptive        # PPO: or 'fixed'
   use_clipped_value_loss: true  # PPO
   value_loss_coef: 1.0          # PPO
@@ -81,10 +82,10 @@ algorithm:
 ac:
   activation: elu # no other activation function implemented
   actor_hidden_dim: 512
-  actor_n_layers: 3         # n_layers = 2 -> no hidden layers
+  actor_n_layers: 4         # n_layers = 2 -> no hidden layers
   critic_hidden_dim: 512
-  critic_n_layers: 3        # n_layers = 2 -> no hidden layers
+  critic_n_layers: 4        # n_layers = 2 -> no hidden layers
   init_std: 1.0             # standard deviation for action distribution
   use_dropout: false        # use dropout after first layer (TODO:where is it best to apply?)
-  dropout_p: 0.0            # dropout probability
+  dropout_p: 0.2            # dropout probability
   use_ltsm: false           # use Long Short-Term Memory (LTSM) hidden layers   TODO: not implemented (MLP function parameter error)
