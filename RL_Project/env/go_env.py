@@ -16,6 +16,7 @@ class GOEnv(MujocoEnv):
 
     class Cfg:
         class RewardScale:
+             # EDIT
             lin_vel = 0.0
             living = -1.0 
             healthy = 1.0
@@ -27,7 +28,7 @@ class GOEnv(MujocoEnv):
             z_vel = 0.0
             z_pos = 0.0 
             foot_slip = 0.0
-
+             # EDIT
             termination = -0.0
             tracking_lin_vel = 10.0
             tracking_ang_vel = 0.8
@@ -37,20 +38,20 @@ class GOEnv(MujocoEnv):
             dof_vel = -0.
             dof_acc = -2.5e-7
             base_height = -1.5 
-            feet_air_time = 0.0 # 1.0 # not implemented!
+            feet_air_time = 0.0 # not implemented!
             collision = -1.0
             feet_stumble = -0.0 
             action_rate = -0.01             
             stand_still = -0.
-
+             # EDIT
             smooth_action_1 = -0.025
             smooth_action_2 = -0.015
 
         class Control:
             control_type = 'P'
-            stiffness = 15.0 # 15 
-            damping = 1.5 # 1.5
-            action_scale = 1.0
+            stiffness = 15.0 # EDIT 
+            damping = 1.5 # EDIT
+            action_scale = 1.0 # EDIT
         
         def __init__(self):
             self.base_height_target = 0.34
