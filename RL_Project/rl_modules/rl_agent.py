@@ -286,7 +286,7 @@ class RLAgent(nn.Module):
 
         # Scaling
         scale_actor = 0.1
-        scale_critic = 10
+        scale_critic = 1000
         scale_reward = 1
 
         plt.clf()

@@ -11,7 +11,7 @@ class GOEnv(MujocoEnv):
             "rgb_array",
             "depth_array",
         ],
-        "render_fps": 12,
+        "render_fps": 25,
     }
 
     class Cfg:
@@ -31,12 +31,12 @@ class GOEnv(MujocoEnv):
             termination = -0.0
             tracking_lin_vel = 10.0
             tracking_ang_vel = 0.8
-            lin_vel_z = -2.0
+            lin_vel_z = -6.0
             ang_vel_xy = -0.05
             torques = -0.0002
             dof_vel = -0.
             dof_acc = -2.5e-7
-            base_height = -0. 
+            base_height = -1.5 
             feet_air_time = 0.0 # 1.0 # not implemented!
             collision = -1.0
             feet_stumble = -0.0 
@@ -48,9 +48,9 @@ class GOEnv(MujocoEnv):
 
         class Control:
             control_type = 'P'
-            stiffness = 3.0 # 15 
+            stiffness = 30.0 # 15 
             damping = 0.2 # 1.5
-            action_scale = 0.5
+            action_scale = 1.0
         
         def __init__(self):
             self.base_height_target = 0.34
@@ -78,7 +78,7 @@ class GOEnv(MujocoEnv):
             low=-np.inf, high=np.inf, shape=(self.obs_dim,), dtype=np.float64
         )
         MujocoEnv.__init__(self,
-                           model_path=os.path.join(os.path.dirname(__file__), 'go/go1_unitree.xml'),
+                           model_path=os.path.join(os.path.dirname(__file__), 'go/scene.xml'),
                            frame_skip=frame_skip,
                            observation_space=observation_space,
                            **kwargs
@@ -126,7 +126,7 @@ class GOEnv(MujocoEnv):
         self.p_gain = np.ones(self.action_dim) * self.cfg.control.stiffness
         self.d_gain = np.ones(self.action_dim) * self.cfg.control.damping
 
-        self.torque_limits = 100.0
+        self.torque_limits = 20
 
     @property
     def lower_limits(self):
@@ -327,12 +327,17 @@ class GOEnv(MujocoEnv):
         self.last_base_orientation = self.base_rotation
         self.last_dof_pos = self.data.qpos[-12:].copy()
         self.last_dof_vel = self.data.qvel[-12:].copy()
+
+        actions_scaled = action * self.cfg.control.action_scale
+        self.qt2 = self.qt1
+        self.qt1 = self.qt
+        self.qt = actions_scaled + self.init_joints[-12:]
         
         self.last_action = self.action
-        self.action = np.clip(action, a_min=self.lower_limits, a_max=self.upper_limits)
-
+        self.action = np.clip(actions_scaled, a_min=self.lower_limits, a_max=self.upper_limits)
         if True:
-            torque = self._compute_torques(self.action)
+            torque = self.p_gain*(actions_scaled + self.init_joints[-12:] - self.dof_pos) - self.d_gain*self.dof_vel
+            torque = np.clip(torque, a_min=-self.torque_limits, a_max=self.torque_limits)
         else:
             torque = self.action
         self.do_simulation(torque, self.frame_skip)
@@ -473,30 +478,3 @@ class GOEnv(MujocoEnv):
         for key in info.keys():
             print(f"{key} : {info[key]:.2f}")
         return
-
-    def _compute_torques(self, actions):
-        """ Compute torques from actions.
-            Actions can be interpreted as position or velocity targets given to a PD controller, or directly as scaled torques.
-            [NOTE]: torques must have the same dimension as the number of DOFs, even if some DOFs are not actuated.
-
-        Args:
-            actions (torch.Tensor): Actions
-
-        Returns:
-            [torch.Tensor]: Torques sent to the simulation
-        """
-        #pd controller
-        actions_scaled = actions * self.cfg.control.action_scale
-        control_type = self.cfg.control.control_type
-        self.qt2 = self.qt1
-        self.qt1 = self.qt
-        self.qt = actions_scaled + self.init_joints[-12:]
-        if control_type=="P":
-            torques = self.p_gain*(self.qt - self.dof_pos) - self.d_gain*self.dof_vel
-        elif control_type=="V":
-            torques = self.p_gain*(actions_scaled - self.dof_vel) - self.d_gain*(self.dof_vel - self.last_dof_vel)/self.sim_params.dt
-        elif control_type=="T":
-            torques = actions_scaled
-        else:
-            raise NameError(f"Unknown controller type: {control_type}")
-        return np.clip(torques, -self.torque_limits, self.torque_limits)
