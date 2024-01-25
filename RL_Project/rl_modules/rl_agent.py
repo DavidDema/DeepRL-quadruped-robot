@@ -15,7 +15,7 @@ class RLAgent(nn.Module):
                  env: GOEnv,
                  storage: Storage,
                  actor_critic: ActorCritic,
-                 lr=0.0005,
+                 lr=0.001,
                  value_loss_coef=1.0,
                  num_batches=4,
                  num_epochs=5,
@@ -285,9 +285,9 @@ class RLAgent(nn.Module):
     def plot_results(save_dir, rewards, actor_losses, critic_losses, traverse, height, it, num_learning_iterations):
 
         # Scaling
-        scale_actor = 0.1
-        scale_critic = 1000
-        scale_reward = 1
+        scale_actor = 1
+        scale_critic = 0.1
+        scale_reward = 0.1
 
         plt.clf()
         plt.plot(np.array(actor_losses)/scale_actor, label=f'actor (x{scale_actor})')
@@ -298,7 +298,7 @@ class RLAgent(nn.Module):
         plt.title("Actor/Critic Loss (" + str(it) + "/" + str(num_learning_iterations) + ")")
         plt.ylabel("Loss")
         plt.xlabel("Episodes")
-        # plt.ylim([-1, 4]) # lock y-axis
+        plt.ylim([-1, 8]) # lock y-axis
         plt.grid(True)
         plt.legend()
         plt.savefig(os.path.join(save_dir, f'ac_loss.png'))
