@@ -4,8 +4,8 @@ runner:
   render_human: false          # show env during training
   max_iterations: 2000        # iterations per training
   max_timesteps: 2000         # timestep per episode
-  save_interval: 200          # save every x iteration
-  plot_interval: 30           # plot every x iteration
+  save_interval: 100          # save every x iteration
+  plot_interval: 10           # plot every x iteration
   save_data: true             # save recorded data in pickle-file
   save_model: true            # save latest in .pt file
   first_save_iter: 100        # first iteration to save files (model, data)
@@ -18,7 +18,7 @@ env:
     base_height_target: 0.34 # in m ?
     damping: 1.5
     stiffness: 15.0
-    only_positive_rewards: true
+    only_positive_rewards: false
     vel_commands:
     - 0.5 # x
     - 0.0 # y
@@ -39,22 +39,22 @@ env:
     living: 0.0 # 2.0
     vel_x: 15.0
     vel_y: -0.0
-    vel_z: -1.0
+    vel_z: 0.0 #-1.0
     x: 0.0
     y: 0.0
-    z: -20.0
+    z: 5.0
     yaw: -0.5 #-0.5
-    pitch: -0.5 #-0.5
+    pitch: 2.5 #-0.5
     roll: -0.5 #-0.5
-    yaw_rate: -2.5 #-0.08
-    pitch_rate: -2.00 #-0.01
-    roll_rate: -2.00 #-0.05
+    yaw_rate: -0.5 #-0.08
+    pitch_rate: -0.05 #-0.01
+    roll_rate: -0.05 #-0.05
     foot_slip: 0.3
     two_feet: 0.0
     feet_air_time: 0.0
     # ETH
-    torques: 0.0 #-0.001
-    dof_acc: 0.0 #-2.5e-7
+    torques: -0.001
+    dof_acc: -2.5e-7
     dof_vel: 0.0
     dof_pos: 0.0
     action_rate: -0.0

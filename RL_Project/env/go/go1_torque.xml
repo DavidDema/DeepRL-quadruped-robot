@@ -16,15 +16,15 @@
       <motor ctrlrange="-23.7 23.7" ctrllimited="true"/>
       <default class="abduction">
         <joint axis="1 0 0" damping="1" range="-0.863 0.863"/>
-        <motor ctrlrange="-0.863 0.863"/>
+        <motor ctrlrange="-33.5 33.5" ctrllimited="true"/>
       </default>
       <default class="hip">
         <joint range="-0.686 4.501"/>
-        <motor ctrlrange="-0.686 4.501"/>
+        <motor ctrlrange="-33.5 33.5" ctrllimited="true"/>
       </default>
       <default class="knee">
         <joint range="-2.818 -0.888"/>
-        <motor forcerange="-35.55 35.55" ctrlrange="-2.818 -0.888"/>
+        <motor ctrlrange="-33.5 33.5" ctrllimited="true"/>
       </default>
       <default class="visual">
         <geom type="mesh" contype="0" conaffinity="0" group="2" material="dark"/>
@@ -195,18 +195,18 @@
   </worldbody>
 
   <actuator>
-    <motor class="abduction" name="FR_hip" joint="FR_hip_joint"/>
-    <motor class="hip" name="FR_thigh" joint="FR_thigh_joint"/>
-    <motor class="knee" name="FR_calf" joint="FR_calf_joint"/>
-    <motor class="abduction" name="FL_hip" joint="FL_hip_joint"/>
-    <motor class="hip" name="FL_thigh" joint="FL_thigh_joint"/>
-    <motor class="knee" name="FL_calf" joint="FL_calf_joint"/>
-    <motor class="abduction" name="RR_hip" joint="RR_hip_joint"/>
-    <motor class="hip" name="RR_thigh" joint="RR_thigh_joint"/>
-    <motor class="knee" name="RR_calf" joint="RR_calf_joint"/>
-    <motor class="abduction" name="RL_hip" joint="RL_hip_joint"/>
-    <motor class="hip" name="RL_thigh" joint="RL_thigh_joint"/>
-    <motor class="knee" name="RL_calf" joint="RL_calf_joint"/>
+    <motor class="abduction" gear="1" name="FR_hip" joint="FR_hip_joint"/>
+    <motor class="hip" gear="1" name="FR_thigh" joint="FR_thigh_joint"/>
+    <motor class="knee" gear="1" name="FR_calf" joint="FR_calf_joint"/>
+    <motor class="abduction" gear="1" name="FL_hip" joint="FL_hip_joint"/>
+    <motor class="hip" gear="1" name="FL_thigh" joint="FL_thigh_joint"/>
+    <motor class="knee" gear="1" name="FL_calf" joint="FL_calf_joint"/>
+    <motor class="abduction" gear="1"  name="RR_hip" joint="RR_hip_joint"/>
+    <motor class="hip" gear="1" name="RR_thigh" joint="RR_thigh_joint"/>
+    <motor class="knee" gear="1" name="RR_calf" joint="RR_calf_joint"/>
+    <motor class="abduction" gear="1" name="RL_hip" joint="RL_hip_joint"/>
+    <motor class="hip" gear="1" name="RL_thigh" joint="RL_thigh_joint"/>
+    <motor class="knee" gear="1" name="RL_calf" joint="RL_calf_joint"/>
   </actuator>
 
   <keyframe>
