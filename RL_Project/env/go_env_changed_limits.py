@@ -93,12 +93,12 @@ class GOEnv(MujocoEnv):
     def lower_limits(self):
         # Limits der einzelnen Gelenke [oben rechts-links, oben vorne-hinten, unten vorne-hinten ]
         # return np.array([-0.863, -0.686, -2.818]*4) #(Anfangsdaten)
-        return np.array([-0.25, -0.8, -1.318] * 4)
+        return np.array([-0.18, -0.8, -1.318] * 4)
 
     @property
     def upper_limits(self):
         # return np.array([0.863, 4.501, -0.888]*4) #(Anfangsdaten)
-        return np.array([0.25, 1.8, -0.888] * 4)
+        return np.array([0.18, 1.8, -0.888] * 4)
 
     @property
     def init_joints(self):

@@ -249,7 +249,7 @@ class GOEnv(MujocoEnv):
 
     def _reward_two_feet(self, feet_cont, scaling_factor = 1.0):
         #if len(feet_cont) < 2 or any(np.array_equal(feet_cont, pair) for pair in [[10, 28], [19, 37]]): ## optional, kleiner machen
-        if len(feet_cont) < 1:
+        if len(feet_cont) < 1:    
             reward_two_feet = -scaling_factor * 100
         else:
             reward_two_feet = scaling_factor * 10
