@@ -1,0 +1,81 @@
+ac:
+  activation: elu
+  actor_hidden_dim: 512
+  actor_n_layers: 3
+  critic_hidden_dim: 512
+  critic_n_layers: 3
+  dropout_p: 0.0
+  init_std: 1.0
+  use_dropout: false
+  use_ltsm: false
+algorithm:
+  action_scale: 0.3
+  clip_param: 0.2
+  desired_kl: 0.01
+  entropy_coef: 0.01
+  gamma: 0.99
+  lam: 0.95
+  learning_rate: 0.0005
+  max_grad_norm: 1.0
+  num_batches: 4
+  num_epochs: 5
+  schedule: adaptive
+  use_clipped_value_loss: true
+  use_gae: true
+  use_ppo: false
+  value_loss_coef: 1.0
+env:
+  control:
+    base_height_target: 0.34
+    damping: 1.5
+    only_positive_rewards: true
+    stiffness: 15.0
+    torque_limits: 100
+    use_torque: false
+    vel_commands:
+    - 0.5
+    - 0.0
+    - 0.0
+  exclude_current_positions_from_observations: false
+  frame_skip: 40
+  healthy_z_range:
+  - 0.15
+  - 0.5
+  reset_noise_scale: 0.01
+  rewards:
+    action_rate: -0.0
+    collision: -0.0
+    dof_acc: 0.0
+    dof_pos: 0.0
+    dof_vel: 0.0
+    feet_air_time: 0.0
+    foot_slip: 0.05
+    living: 0.0
+    not_living: -2.0
+    pitch: -0.5
+    pitch_rate: -2.0
+    roll: -0.5
+    roll_rate: -2.0
+    torques: 0.0
+    two_feet: 0.0
+    unhealthy: -5.0
+    vel_x: 15.0
+    vel_y: -0.0
+    vel_z: 0.0
+    x: 0.0
+    y: 0.0
+    yaw: -0.5
+    yaw_rate: -2.5
+    z: 0.0
+  terminate_when_unhealthy: true
+  unhealthy_angle: 80
+runner:
+  experiment_name: default
+  first_save_iter: 50
+  max_iterations: 1000
+  max_timesteps: 2000
+  plot_interval: 10
+  render_human: false
+  save_data: true
+  save_interval: 50
+  save_model: true

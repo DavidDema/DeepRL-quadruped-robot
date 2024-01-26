@@ -3,5 +3,6 @@ r3 - r7: best (or without changes, no individual rewards)
 r8: without GAE/PPO
 r9: without GAE
 r10: with Dropout
-r11: 
-r12:
+r11: max_timesteps=500
+r12: max_timesteps=1000
+r13: without PPO
