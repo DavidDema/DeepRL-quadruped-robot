@@ -18,8 +18,8 @@ def test():
     use_experiment = True
     if use_experiment:
         # Use the checkpoint/experiment folder
-        save_dir = 'checkpoints/'
-        experiment = 'latest'
+        save_dir = 'results/'
+        experiment = 'runner'
         filepath_model = os.path.join(save_dir, f"{experiment}/model.pt")
         filepath_cfg = os.path.join(save_dir, f"{experiment}/config.yaml")
     else:
