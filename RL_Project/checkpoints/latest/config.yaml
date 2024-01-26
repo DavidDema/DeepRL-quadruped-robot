@@ -50,6 +50,7 @@ env:
     dof_vel: 0.0
     feet_air_time: 0.0
     foot_slip: 0.05
+    lin_vel: 0.0
     living: 0.0
     not_living: -2.0
     pitch: -0.5
