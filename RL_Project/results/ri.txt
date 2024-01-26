@@ -1,8 +1,10 @@
 r1 - r2: old (David)
 r3 - r7: best (or without changes, no individual rewards)
-r8: without GAE/PPO
-r9: without GAE
-r10: with Dropout
+r8: w/o GAE/PPO
+r9: w/o GAE
+r10: w/ Dropout
 r11: max_timesteps=500
 r12: max_timesteps=1000
-r13: without PPO
+r13: w/o PPO
+r14: w/ LSTM
+r15: our method
