@@ -33,7 +33,7 @@ def plot_rewards(datas, cfg, exp_names):
         'r8':  'w/o GAE/PPO',
         'r9':  'w/o GAE',
         'r13': 'w/o PPO',
-        'r10': 'w/ Dropout',
+        'r10': 'w/ dropout (p=0.3)',
         'r11': 'max_timesteps=500',
         'r12': 'max_timesteps=1000',
         'r14': 'w/ LSTM'
@@ -74,7 +74,7 @@ def plot_rewards(datas, cfg, exp_names):
     # Create a common legend outside the loop
     plt.legend(loc='upper left', bbox_to_anchor=(0, 1))
 
-    plt.tight_layout(h_pad=0.3, w_pad=0.3)
+    plt.tight_layout(h_pad=0.1, w_pad=0.1)
     plt.show()
 
 if __name__ == '__main__':
