@@ -251,12 +251,14 @@ class RLAgent(nn.Module):
             for key in info_mean.keys():
                 key_values = []
                 if key == "rewards":
+                    for rew_key in info_rewards:
+                        rew_key_values = []
+                        for info in infos:
+                            rew_key_values.append(info[key][rew_key])
+                        info_rewards[rew_key] = np.mean(rew_key_values)
+                        data["reward_" + rew_key].append(info_rewards[rew_key])
+                        # print("reward_" + rew_key + ": " + str(len(data["reward_" + rew_key])))
                     continue
-                    for info in infos:
-                        for rew_key in info[key]:
-                            # TODO
-                            pass
-
                 for info in infos:
                     key_values.append(info[key])
                 infos_array[key] = key_values
