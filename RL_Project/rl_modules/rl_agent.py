@@ -54,6 +54,7 @@ class RLAgent(nn.Module):
         self.optimizer = optim.Adam(self.actor_critic.parameters(), lr=self.learning_rate)
 
         self.use_ppo = self.alg_cfg['use_ppo']
+        self.use_gae = self.alg_cfg['use_gae']
         # für eigenes ppo
         self.ppo_eps = ppo_eps
         self.target_kl = target_kl
@@ -84,7 +85,7 @@ class RLAgent(nn.Module):
 
     def compute_returns(self, last_obs):
         last_values = self.actor_critic.evaluate(last_obs).detach().cpu().numpy()
-        return self.storage.compute_returns(last_values, self.gamma, self.lam)
+        return self.storage.compute_returns(last_values, self.gamma, self.lam, use_gae=self.use_gae)
 
     def update(self, own_ppo=False):
         mean_value_loss = 0
@@ -337,7 +338,7 @@ class RLAgent(nn.Module):
         plt.ylabel("Loss")
         plt.xlabel("Episodes")
         plt.ylim([-1, 4]) # lock y-axis
-        #plt.grid(True)
+        plt.grid(True, alpha=0.3)
         plt.legend()
         if savefig:
             plt.savefig(os.path.join(save_dir, 'ac_loss.png'))

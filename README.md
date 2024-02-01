@@ -69,7 +69,7 @@ It is also possible to select a specific training set (`use_experiment=False`) a
 The config file "config/config.yaml" is copied into the checkpoint folder `checkpoint/.../model`.
 In addition, the recorded relevant data values in rl_agend.learn() are saved as a dictionary in the same folder with a copy of the newest `model.pt` of the current training process.
 
-## RESULTS:
+## Results: (TODO)
 
 ### Actor/Critic losses without changes
 ![losses without changes](RL_Project/results/ac_loss.png)
@@ -92,19 +92,8 @@ In addition, the recorded relevant data values in rl_agend.learn() are saved as 
 - calculate feet position
 - add experience replay
 
-### Report
+### Results
 
-Chapters:
-- Introduction
-- Method
-- Results
-- Conclusion
-
-Other tasks: 
-- Retrieving results
-- Create Readme for Tutors
-
-Results:
 - PPO on/off
 - GAE on/off
 - Longer Training Time
@@ -112,15 +101,17 @@ Results:
 - Longer MaxTimesteps
 - ?
 
-## DONE:
-- implement GAE: as discribed in ActorCritic slides
-- implement PPO: ActorCritic slides, https://spinningup.openai.com/en/latest/algorithms/ppo.html
-- plot and dynamically update Actor/Critic loss and rewards
+## References
+
+- ETH:
+  * Paper: https://arxiv.org/pdf/2109.11978.pdf
+  * Rewards: https://github.com/leggedrobotics/legged_gym/blob/20f7f92e89865084b958895d988513108b307e6c/legged_gym/envs/base/legged_robot.py#L853
+  * PPO: https://github.com/leggedrobotics/rsl_rl/blob/master/rsl_rl/algorithms/ppo.py
+  * GAE: https://github.com/leggedrobotics/rsl_rl/blob/master/rsl_rl/storage/rollout_storage.py
+- Nature Paper: https://www.nature.com/articles/s41598-023-38259-7
 - use LTSM as hidden layer for network: 
     * https://github.com/Kaixhin/ACER/tree/master
-- adapt reward-functions: 
+- PPO: https://spinningup.openai.com/en/latest/algorithms/ppo.html
+- Reward-functions: 
     * https://www.nature.com/articles/s41598-023-38259-7 
     * https://colab.research.google.com/github/google-deepmind/mujoco/blob/main/mjx/tutorial.ipynb#scrollTo=y79PoJOCIl-O
-
-## TODO:
-

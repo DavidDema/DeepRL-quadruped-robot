@@ -8,7 +8,7 @@ from datetime import datetime
 import os
 import torch
 
-from deeprl_cheetah.RL_Project.config.config import Config
+from config.logger import load_cfg, save_cfg, load_data, load_experiment
 
 def train():
     if torch.cuda.is_available():
@@ -17,8 +17,7 @@ def train():
         device = 'cpu'
     log_name = datetime.now().strftime("%Y-%m-%d/%H-%M-%S")
 
-    c = Config()
-    cfg = c.load()
+    cfg = load_cfg("config/config.yaml")
 
     # create environment
     if cfg['runner']['render_human']:
@@ -37,7 +36,7 @@ def train():
     save_dir_model = os.path.join(save_dir, "model")
     if not os.path.exists(save_dir_model):
         os.makedirs(save_dir_model)
-    c.save(save_dir_model)
+    save_cfg(cfg=cfg, save_dir=save_dir_model)
     # remove the folder for the latest results
     try:
         shutil.rmtree("checkpoints/latest", )
@@ -46,6 +45,7 @@ def train():
 
     # learn
     rl_agent.learn(save_dir)
+
 
 if __name__ == '__main__':
     train()

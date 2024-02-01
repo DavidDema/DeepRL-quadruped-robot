@@ -61,43 +61,46 @@ class Storage:
     def clear(self):
         self.step = 0
 
-    def compute_returns(self, last_values, gamma, lam):
-        advantage = 0
-        for step in reversed(range(self.max_timesteps)):
-            if step == self.max_timesteps - 1:
-                next_values = last_values
-            else:
-                next_values = self.values[step + 1]
-            next_is_not_terminal = 1.0 - self.dones[step]
-            delta = self.rewards[step] + next_is_not_terminal * gamma * next_values - self.values[step]
-            advantage = delta + next_is_not_terminal * gamma * lam * advantage
-            self.returns[step] = advantage + self.values[step]
+    def compute_returns(self, last_values, gamma, lam, use_gae=True):
 
-        # Compute and normalize the advantages
-        self.advantages = self.returns - self.values
-        self.advantages = (self.advantages - self.advantages.mean()) / (self.advantages.std() + 1e-8)
+        if use_gae:
+            advantage = 0
+            for step in reversed(range(self.max_timesteps)):
+                if step == self.max_timesteps - 1:
+                    next_values = last_values
+                else:
+                    next_values = self.values[step + 1]
+                next_is_not_terminal = 1.0 - self.dones[step]
+                delta = self.rewards[step] + next_is_not_terminal * gamma * next_values - self.values[step]
+                advantage = delta + next_is_not_terminal * gamma * lam * advantage
+                self.returns[step] = advantage + self.values[step]
 
-    def compute_returns_old(self, last_values, gae=True):
-        for step in reversed(range(self.max_timesteps)):
-            self.advantages[step] = 0 
-            if gae:
-                diff = self.max_timesteps - step
-                for l in range(diff):
-                    if step + l == self.max_timesteps - 1:
-                        next_values = last_values
-                    else:
-                        next_values = self.values[step + l + 1]
-                    next_is_not_terminate = 1.0 - self.dones[step + l]
-                    delta = self.rewards[step + l] + next_is_not_terminate * self.gamma * next_values - self.values[step + l] # calculate advantage estimation
-                    self.advantages[step] += ((self.gamma * self.lmbda)**l) * delta
-            else:
+            # Compute and normalize the advantages
+            self.advantages = self.returns - self.values
+            self.advantages = (self.advantages - self.advantages.mean()) / (self.advantages.std() + 1e-8)
+        else:
+            for step in reversed(range(self.max_timesteps)):
                 if step == self.max_timesteps - 1:
                     next_values = last_values
                 else:
                     next_values = self.values[step + 1]
                 next_is_not_terminate = 1.0 - self.dones[step]
-                delta = self.rewards[step] + next_is_not_terminate * self.gamma * next_values - self.values[step]
+                delta = self.rewards[step] + next_is_not_terminate * gamma * next_values - self.values[step]
                 self.advantages[step] = delta
+                self.returns[step] = self.advantages[step] + self.values[step]
+
+    def compute_returns_gae_old(self, last_values, gamma, lam):
+        for step in reversed(range(self.max_timesteps)):
+            self.advantages[step] = 0
+            diff = self.max_timesteps - step
+            for l in range(diff):
+                if step + l == self.max_timesteps - 1:
+                    next_values = last_values
+                else:
+                    next_values = self.values[step + l + 1]
+                next_is_not_terminate = 1.0 - self.dones[step + l]
+                delta = self.rewards[step + l] + next_is_not_terminate * gamma * next_values - self.values[step + l] # calculate advantage estimation
+                self.advantages[step] += ((gamma * lam)**l) * delta
             self.returns[step] = self.advantages[step] + self.values[step]
 
     def mini_batch_generator(self, num_batches, num_epochs=8, device="cpu"):
