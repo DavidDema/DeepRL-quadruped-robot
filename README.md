@@ -1,11 +1,4 @@
-# Reinforcement Learning: Group 5 (384.195 Robot Learning)
-
-## Team Members
-
-- Kira Herlemann
-- Nino Wegleitner
-- Piet Carl Kaul
-- David Demattio
+# Reinforcement Learning with the quadruped robot Unitree Go1
 
 ## Code structure
 Only relevant files are described in the following tree structure:
@@ -75,37 +68,13 @@ It is also possible to select a specific training set (`use_experiment=False`) a
 The config file "config/config.yaml" is copied into the checkpoint folder `checkpoint/.../model`.
 In addition, the recorded relevant data values in rl_agend.learn() are saved as a dictionary in the same folder with a copy of the newest `model.pt` of the current training process.
 
-## Results: (TODO)
-
-### Actor/Critic losses without changes
-![losses without changes](RL_Project/results/ac_loss.png)
-
-### Actor/Critic losses without changes
-![losses with GAE](RL_Project/results/ac_loss_gae.png)
-
-### Actor/Critic losses with GAE and PPO
-![losses with GAE and PPO](RL_Project/results/ac_loss_gae_ppo.png)
-
-### Actor/Critic losses with GAE, PPO and LSTM
-![losses with GAE, PPO and LSTM](RL_Project/results/ac_loss_gae_ppo_lstm.png)
-
-### Actor/Critic losses with GAE, PPO, LSTM and adapted reward functions
-%![losses with GAE, PPO, LSTM and adapted reward](RL_Project/results/ac_loss_gae_ppo_lstm_reward.png)
-
 ## TODO 
 
 - check implementations
 - calculate feet position
 - add experience replay
 
-### Results
 
-- PPO on/off
-- GAE on/off
-- Longer Training Time
-- Different Rewards
-- Longer MaxTimesteps
-- ?
 
 ## References
 
